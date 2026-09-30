@@ -9,37 +9,43 @@
 
 ## 6. Non-Functional Requirements
 
-### 6.1 Security and Access Control
+### 6.1 Security Objectives
 
-1. Authentication is required before a user can access protected functions.
-2. Passwords and authentication data shall be transmitted and stored using the security controls provided by the deployment platform.
-3. Role-based authorization shall be applied at the user-interface and service/data layers.
-4. Users shall only view or modify customer, vehicle, service, and maintenance information permitted by their role.
-5. Invalid credentials, expired sessions, and blocked operations shall produce a clear error without exposing sensitive data.
-6. Security-relevant events, including login failures and unauthorized access attempts, should be auditable by an administrator.
+- **SO-SEC-01: Confidentiality.** Protect credentials and customer, vehicle, service, and maintenance information from disclosure to unauthenticated or unauthorized users.
+- **SO-SEC-02: Controlled access and accountability.** Ensure users can perform only role-authorized actions and that security-relevant access events can be reviewed.
 
-### 6.2 Performance and Capacity
+### 6.2 Security Requirements
+
+1. **NFR-SEC-01:** Authentication is required before a user can access protected functions.
+2. **NFR-SEC-02:** Passwords and authentication data shall be transmitted and stored using the security controls provided by the deployment platform.
+3. **NFR-SEC-03:** Role-based authorization shall be applied at the user-interface and service/data layers.
+4. **NFR-SEC-04:** Users shall only view or modify customer, vehicle, service, and maintenance information permitted by their role.
+5. **NFR-SEC-05:** Invalid credentials, expired sessions, and blocked operations shall produce a clear error without exposing sensitive data.
+6. **NFR-SEC-06:** Security-relevant events, including login failures and unauthorized access attempts, should be auditable by an administrator.
+7. **NFR-SEC-07:** Passwords shall not be stored in plaintext.
+
+### 6.3 Performance and Capacity
 
 1. Normal search, record retrieval, and status-display operations should respond within 3 seconds under expected operating load.
 2. Record creation and update operations should provide success or validation feedback within 3 seconds under expected operating load.
 3. The system should support the expected volume of customers, vehicles, service requests, and maintenance records without loss of data integrity.
 4. Search results should be limited, paginated, or otherwise bounded when a query returns a large number of records.
 
-### 6.3 Availability, Reliability, and Recovery
+### 6.4 Availability, Reliability, and Recovery
 
 1. The system shall preserve successfully committed records and relationships between customers, vehicles, service requests, activities, and maintenance history.
 2. A failed validation or interrupted save shall not create a partial record.
 3. The deployment shall provide regular database backup and restore procedures.
 4. After recovery from an infrastructure failure, the system shall return to a consistent state and prevent duplicate submissions where possible.
 
-### 6.4 Usability and Accessibility
+### 6.5 Usability and Accessibility
 
 1. Forms shall label required fields and display actionable validation messages near the relevant input.
 2. Navigation, terminology, and status values shall be consistent throughout the system.
 3. Date, phone, registration-number, and other structured fields shall show the expected format.
 4. Primary workflows shall be usable with keyboard navigation and readable on supported desktop and mobile viewports.
 
-### 6.5 Maintainability and Compatibility
+### 6.6 Maintainability and Compatibility
 
 1. Business rules for authorization, validation, and status transitions should be implemented in reusable service components.
 2. The system shall use documented interfaces between the user interface, application services, and persistent data store.
@@ -94,14 +100,14 @@
 
 ## Field Layouts
 
-The following layouts define the minimum fields implied by the functional requirements. The implementation may add audit fields such as `createdAt`, `updatedAt`, and `createdBy`.
+The layouts below follow the entities and attributes shown in the Member 2 ER diagram. Primary-key and foreign-key labels are stated explicitly. The implementation may add audit fields such as `createdAt`, `updatedAt`, and `createdBy` without changing the ER-mapped fields.
 
 ### Customer
 
 | Field | Required | Format / validation | Access |
 |---|---|---|---|
-| Customer ID | Yes, generated | Unique system identifier | Authorized users, according to role |
-| Full name | Yes | Non-empty text | Authorized service staff create/update; permitted users view |
+| Customer_ID (PK) | Yes, generated | Unique system identifier | Authorized users, according to role |
+| Name | Yes | Non-empty text | Authorized service staff create/update; permitted users view |
 | Phone | Yes | Valid phone format | Authorized service staff create/update; permitted users view |
 | Email | Recommended | Valid email format when supplied | Authorized users, according to role |
 | Address | Recommended | Address text when supplied | Authorized users, according to role |
@@ -110,9 +116,9 @@ The following layouts define the minimum fields implied by the functional requir
 
 | Field | Required | Format / validation | Access |
 |---|---|---|---|
-| Vehicle ID | Yes, generated | Unique system identifier | Authorized users, according to role |
-| Customer ID | Yes | Must reference an existing customer | Authorized staff create/update; permitted users view |
-| Registration number | Yes | Non-empty, unique according to deployment rules | Authorized staff create/update; permitted users view |
+| Vehicle_ID (PK) | Yes, generated | Unique system identifier | Authorized users, according to role |
+| Customer_ID (FK) | Yes | Must reference an existing CUSTOMER.Customer_ID | Authorized staff create/update; permitted users view |
+| Registration_No | Yes | Non-empty, unique according to deployment rules | Authorized staff create/update; permitted users view |
 | Make | Yes | Non-empty text | Authorized staff create/update; permitted users view |
 | Model | Yes | Non-empty text | Authorized staff create/update; permitted users view |
 | Year | Yes | Four-digit valid vehicle year | Authorized staff create/update; permitted users view |
@@ -121,24 +127,45 @@ The following layouts define the minimum fields implied by the functional requir
 
 | Field | Required | Format / validation | Access |
 |---|---|---|---|
-| Service request ID | Yes, generated | Unique system identifier | Authorized users |
-| Vehicle ID | Yes | Must reference a registered vehicle | Authorized users create; permitted users view |
-| Request date | Yes | Valid date | Authorized users create/update; permitted users view |
-| Service type | Yes | Controlled value or non-empty text | Authorized users create/update; permitted users view |
+| Service_Request_ID (PK) | Yes, generated | Unique system identifier | Authorized users |
+| Vehicle_ID (FK) | Yes | Must reference an existing VEHICLE.Vehicle_ID | Authorized users create; permitted users view |
+| Request_Date | Yes | Valid date | Authorized users create/update; permitted users view |
+| Service_Type | Yes | Controlled value or non-empty text | Authorized users create/update; permitted users view |
 | Description | Yes | Non-empty service description | Authorized users create/update; permitted users view |
 | Status | Yes, system-managed | Controlled lifecycle value | Authorized users, according to role |
-| Assigned technician | Conditional | Required when work is assigned; must reference a technician | Service staff assign; technician views own assignments |
 
-### Service Activity and Maintenance Record
+### User
 
 | Field | Required | Format / validation | Access |
 |---|---|---|---|
-| Activity ID / maintenance ID | Yes, generated | Unique system identifier | Authorized users |
-| Service request ID | Required for activity | Must reference the related request | Technician records activity; permitted users view |
-| Vehicle ID | Required for maintenance | Must reference the related vehicle | Authorized users |
-| Activity or maintenance date | Yes | Valid date | Authorized users |
-| Details / description | Yes | Non-empty text | Technician or authorized staff create/update |
-| Completion / progress | Conditional | Controlled status or progress value | Technician records; authorized users view |
+| User_ID (PK) | Yes, generated | Unique system identifier | Administrator; user may view own profile |
+| Name | Yes | Non-empty text | Administrator/user according to role |
+| Username | Yes | Unique, non-empty login name | Administrator/user according to role |
+| Password | Yes | Store as a secure password hash, never plaintext | Not displayed after entry; credential verification only |
+| Role | Yes | One of the roles defined by the project | Administrator manages; authorization service reads |
+
+### Service Activity
+
+| Field | Required | Format / validation | Access |
+|---|---|---|---|
+| Activity_ID (PK) | Yes, generated | Unique system identifier | Authorized users |
+| Service_Request_ID (FK) | Yes | Must reference an existing SERVICE_REQUEST.Service_Request_ID | Technician records; permitted users view |
+| Technician_ID (FK) | Yes | Must reference an authorized USER.User_ID with technician role | Service staff assigns; technician views own work |
+| Activity_Date | Yes | Valid date | Technician records; permitted users view |
+| Description | Yes | Non-empty text | Technician records; permitted users view |
+| Completion_Details | Conditional | Required when completion is recorded | Technician records; permitted users view |
+
+### Maintenance Record
+
+| Field | Required | Format / validation | Access |
+|---|---|---|---|
+| Maintenance_ID (PK) | Yes, generated | Unique system identifier | Authorized users |
+| Vehicle_ID (FK) | Yes | Must reference an existing VEHICLE.Vehicle_ID | Authorized staff create/update; permitted users view |
+| Activity_ID (FK) | As shown in ER model | Must reference the related SERVICE_ACTIVITY.Activity_ID | Authorized staff create/update; permitted users view |
+| Maintenance_Date | Yes | Valid date | Authorized staff create/update; permitted users view |
+| Details | Yes | Non-empty maintenance details | Authorized staff create/update; permitted users view |
+
+**ER consistency note:** The ER diagram does not show an `Assigned_Technician` attribute on `SERVICE_REQUEST`; technician assignment is represented by `SERVICE_ACTIVITY.Technician_ID`. The diagram also shows `MAINTENANCE_RECORD.Activity_ID` as a foreign key. These layouts reflect the diagram as supplied. Priya should confirm those relationship choices if assignment is intended to exist at request level or if maintenance records should link directly to activities.
 
 ## Requirement Traceability Matrix
 
@@ -187,11 +214,29 @@ The test IDs below are taken from the current test-case document. `Pending` mean
 | REQ-INFO-07 | Display a message when no records match | UT-15, ST-10 | Pending |
 | REQ-INFO-08 | Restrict results to authorized information | IT-15, ST-10 | Pending |
 
+### Security and NFR Traceability
+
+The current Member 3 test plan does not yet contain test cases for these security non-functional requirements. Harshith should add the test cases and IDs; replace the pending references below with those IDs after they are added. No test result is asserted here.
+
+| Requirement ID | Requirement summary | Verification test IDs | Execution status |
+|---|---|---|---|
+| NFR-SEC-01 | Require authentication before protected access | Pending Harshith test ID | Not executed |
+| NFR-SEC-02 | Protect credentials in transit and at rest; do not store plaintext passwords | Pending Harshith test ID | Not executed |
+| NFR-SEC-03 | Enforce role-based authorization at UI and service/data layers | Pending Harshith test ID | Not executed |
+| NFR-SEC-04 | Restrict customer, vehicle, service, and maintenance data by role | Pending Harshith test ID | Not executed |
+| NFR-SEC-05 | Handle failed authentication, expired sessions, and blocked operations without leaking sensitive data | Pending Harshith test ID | Not executed |
+| NFR-SEC-06 | Make security-relevant events auditable | Pending Harshith test ID | Not executed |
+| NFR-SEC-07 | Prevent storage of plaintext passwords | Pending Harshith test ID | Not executed |
+
+Security objectives are traced to their supporting requirements: SO-SEC-01 is supported by NFR-SEC-02, NFR-SEC-04, NFR-SEC-05, and NFR-SEC-07; SO-SEC-02 is supported by NFR-SEC-01, NFR-SEC-03, NFR-SEC-06, and NFR-SEC-07.
+
 ### RTM Review Checklist
 
 - [x] Every functional requirement from Sections 3-5 has an RTM row.
-- [x] Every RTM row references at least one current unit, integration, or system test.
-- [x] Test execution results are explicitly left pending until Harshith executes the test plan.
+- [x] Every functional requirement currently references at least one test case from the Member 3 test plan.
+- [x] Security/NFR rows are included and await Harshith's test-case IDs.
+- [x] Test execution results are not marked Pass or Fail before execution.
 - [ ] Replace `Pending` with the executed result and evidence reference after QA execution.
+- [ ] Replace pending security test-ID references after Harshith adds those test cases.
 - [ ] Add trace links to implementation modules when the application structure is finalized.
 - [ ] Review requirement changes from Priya before final SRS formatting and submission.
