@@ -38,7 +38,7 @@ The API listens on port `3000` by default. Configure `PORT` and `DATABASE_PATH` 
 
 `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns a one-hour bearer token. For authenticated requests, send the returned token in the `Authorization` header with the `Bearer` scheme. Passwords are hashed with bcrypt, login requests are rate limited, and each request loads the user's current active state and role from the database so role changes and deactivation take effect immediately.
 
-Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Service creation is limited to administrators and service advisors; service status updates are limited to administrators, service advisors, and technicians.
+Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Service creation and technician assignment are limited to administrators and service advisors; assigned technicians can view and update their own active work. Administrators and service advisors can view and manage all services.
 
 ## User administration
 
@@ -52,9 +52,12 @@ User deletion is intentionally not provided: accounts are deactivated so histori
 
 - `GET /api/admin/audit-events?limit=50&offset=0` — list timestamped events with actor identity/role, action, target, and relevant change details.
 - `POST /api/services` — create a service record (starts in `received`).
-- `PATCH /api/services/:id/status` — set a status to `received`, `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`.
+- `POST /api/services/:id/assign` — assign an active Service Technician with `{ "technicianUserId": "<user-id>" }`; assigning a new service moves it to `assigned`.
+- `GET /api/services/assigned?limit=50&offset=0` — list active assignments. Technicians see only their own; administrators and advisors can see all active assignments.
+- `PATCH /api/services/:id/execution` — record `workPerformed`, optional `notes`, and/or progress `status` (`in_progress`, `awaiting_parts`, etc.). Marking work `completed` requires an assigned technician and non-empty work performed; the server records `completedAt`.
+- `PATCH /api/services/:id/status` — update a service status to `received`, `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`. Completion through this route also requires assignment and recorded work.
 
-User creation/changes, successful logins, service creation, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
+User creation/changes, successful logins, service assignment, execution updates, completion, and service-status changes are recorded in the same database transaction as their corresponding change. Completed and cancelled services cannot be modified. Audit details exclude passwords and include service work/notes where changed. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. The API migrates existing SQLite service tables to add assignment, execution, and completion fields. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
 
 ## Development checks
 

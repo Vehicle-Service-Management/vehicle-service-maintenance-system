@@ -31,6 +31,14 @@ const createServiceSchema = z.object({
 const updateServiceStatusSchema = z.object({
   status: z.enum(serviceStatuses)
 });
+const assignServiceSchema = z.object({
+  technicianUserId: z.uuid()
+});
+const updateExecutionSchema = z.object({
+  workPerformed: z.string().trim().min(1).max(10000).optional(),
+  notes: z.string().trim().max(5000).optional(),
+  status: z.enum(serviceStatuses).optional()
+}).refine((value) => Object.keys(value).length > 0, "Provide at least one execution field to update");
 
 interface UserRow {
   id: string;
@@ -52,6 +60,36 @@ interface AuditRow {
   targetId: string;
   detailsJson: string;
   createdAt: string;
+}
+
+interface ServiceRow {
+  id: string;
+  description: string;
+  status: typeof serviceStatuses[number];
+  createdBy: string;
+  assignedTo: string | null;
+  assignedTechnicianName: string | null;
+  assignedTechnicianEmail: string | null;
+  workPerformed: string;
+  notes: string;
+  completedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function serviceSelect(): string {
+  return `
+    SELECT s.id, s.description, s.status, s.created_by AS createdBy,
+           s.assigned_to AS assignedTo, u.display_name AS assignedTechnicianName,
+           u.email AS assignedTechnicianEmail, s.work_performed AS workPerformed,
+           s.service_notes AS notes, s.completed_at AS completedAt,
+           s.created_at AS createdAt, s.updated_at AS updatedAt
+    FROM services s LEFT JOIN users u ON u.id = s.assigned_to
+  `;
+}
+
+function canModifyService(user: AuthenticatedUser, service: ServiceRow): boolean {
+  return user.role !== "Service Technician" || service.assignedTo === user.id;
 }
 
 function parseInput<T>(schema: z.ZodType<T>, input: unknown, res: express.Response): T | undefined {
@@ -290,31 +328,161 @@ export function createApp(db: AppDatabase, jwtSecret: string): express.Express {
     res.status(201).json({ service: { id, description: input.description, status: "received", createdAt: now, updatedAt: now } });
   });
 
-  app.patch("/api/services/:id/status", authenticate, requireRoles("Administrator", "Service Advisor", "Service Technician"), (req, res) => {
-    const input = parseInput(updateServiceStatusSchema, req.body, res);
+  app.get("/api/services/assigned", authenticate, requireRoles("Administrator", "Service Advisor", "Service Technician"), (req, res) => {
+    const page = pagination(req, res);
+    if (!page) return;
+    const assignedFilter = req.user!.role === "Service Technician" ? "AND s.assigned_to = ?" : "AND s.assigned_to IS NOT NULL";
+    const values = req.user!.role === "Service Technician"
+      ? [req.user!.id, page.limit, page.offset]
+      : [page.limit, page.offset];
+    const services = db.prepare(`
+      ${serviceSelect()}
+      WHERE s.status NOT IN ('completed', 'cancelled') ${assignedFilter}
+      ORDER BY s.updated_at DESC, s.id LIMIT ? OFFSET ?
+    `).all(...values) as ServiceRow[];
+    const countValues = req.user!.role === "Service Technician" ? [req.user!.id] : [];
+    const total = (db.prepare(`
+      SELECT COUNT(*) AS count FROM services s
+      WHERE s.status NOT IN ('completed', 'cancelled') ${assignedFilter}
+    `).get(...countValues) as { count: number }).count;
+    res.json({ services, total, limit: page.limit, offset: page.offset });
+  });
+
+  app.post("/api/services/:id/assign", authenticate, requireRoles("Administrator", "Service Advisor"), (req, res) => {
+    const input = parseInput(assignServiceSchema, req.body, res);
     if (!input) return;
-    const service = db.prepare(`
-      SELECT id, description, status, created_at AS createdAt, updated_at AS updatedAt
-      FROM services WHERE id = ?
-    `).get(req.params.id) as
-      | { id: string; description: string; status: typeof serviceStatuses[number]; createdAt: string; updatedAt: string }
-      | undefined;
+    const service = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(req.params.id) as ServiceRow | undefined;
     if (!service) {
       res.status(404).json({ error: "Service not found" });
       return;
     }
+    if (service.status === "completed" || service.status === "cancelled") {
+      res.status(409).json({ error: "A completed or cancelled service cannot be assigned" });
+      return;
+    }
+    const technician = db.prepare(`
+      SELECT id, display_name AS displayName, email FROM users
+      WHERE id = ? AND role = 'Service Technician' AND is_active = 1
+    `).get(input.technicianUserId) as { id: string; displayName: string; email: string } | undefined;
+    if (!technician) {
+      res.status(400).json({ error: "Assigned user must be an active Service Technician" });
+      return;
+    }
+
     const now = new Date().toISOString();
+    const status = service.status === "received" ? "assigned" : service.status;
     db.transaction(() => {
-      db.prepare("UPDATE services SET status = ?, updated_at = ? WHERE id = ?").run(input.status, now, service.id);
+      db.prepare("UPDATE services SET assigned_to = ?, status = ?, updated_at = ? WHERE id = ?")
+        .run(technician.id, status, now, service.id);
       recordAuditEvent(db, {
         actor: req.user!,
-        action: "service.status_changed",
+        action: "service.assigned",
         targetType: "service",
         targetId: service.id,
-        details: { from: service.status, to: input.status }
+        details: {
+          assignedTo: { from: service.assignedTo, to: technician.id },
+          status: { from: service.status, to: status }
+        }
       });
     })();
-    res.json({ service: { ...service, status: input.status, updatedAt: now } });
+    const updated = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(service.id) as ServiceRow;
+    res.json({ service: updated });
+  });
+
+  app.patch("/api/services/:id/execution", authenticate, requireRoles("Administrator", "Service Advisor", "Service Technician"), (req, res) => {
+    const input = parseInput(updateExecutionSchema, req.body, res);
+    if (!input) return;
+    const service = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(req.params.id) as ServiceRow | undefined;
+    if (!service) {
+      res.status(404).json({ error: "Service not found" });
+      return;
+    }
+    if (!canModifyService(req.user!, service)) {
+      res.status(403).json({ error: "Technicians may only update services assigned to them" });
+      return;
+    }
+    if (service.status === "completed" || service.status === "cancelled") {
+      res.status(409).json({ error: "A completed or cancelled service cannot be modified" });
+      return;
+    }
+    const status = input.status ?? service.status;
+    if (status === "completed" && (!service.assignedTo || !(input.workPerformed ?? service.workPerformed).trim())) {
+      res.status(400).json({ error: "Assign the service and record work performed before completing it" });
+      return;
+    }
+    if (req.user!.role === "Service Technician" && status === "cancelled") {
+      res.status(403).json({ error: "Technicians cannot cancel service requests" });
+      return;
+    }
+    const workPerformed = input.workPerformed ?? service.workPerformed;
+    const notes = input.notes ?? service.notes;
+    const now = new Date().toISOString();
+    const completedAt = status === "completed" ? now : null;
+    const changes: Record<string, unknown> = {};
+    if (workPerformed !== service.workPerformed) changes.workPerformed = { from: service.workPerformed, to: workPerformed };
+    if (notes !== service.notes) changes.notes = { from: service.notes, to: notes };
+    if (status !== service.status) changes.status = { from: service.status, to: status };
+    if (Object.keys(changes).length === 0) {
+      res.json({ service });
+      return;
+    }
+    db.transaction(() => {
+      db.prepare(`
+        UPDATE services
+        SET work_performed = ?, service_notes = ?, status = ?, completed_at = ?, updated_at = ?
+        WHERE id = ?
+      `).run(workPerformed, notes, status, completedAt, now, service.id);
+      recordAuditEvent(db, {
+        actor: req.user!,
+        action: status === "completed" ? "service.completed" : "service.execution_updated",
+        targetType: "service",
+        targetId: service.id,
+        details: { ...changes, completedAt }
+      });
+    })();
+    const updated = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(service.id) as ServiceRow;
+    res.json({ service: updated });
+  });
+
+  app.patch("/api/services/:id/status", authenticate, requireRoles("Administrator", "Service Advisor", "Service Technician"), (req, res) => {
+    const input = parseInput(updateServiceStatusSchema, req.body, res);
+    if (!input) return;
+    const service = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(req.params.id) as ServiceRow | undefined;
+    if (!service) {
+      res.status(404).json({ error: "Service not found" });
+      return;
+    }
+    if (!canModifyService(req.user!, service)) {
+      res.status(403).json({ error: "Technicians may only update services assigned to them" });
+      return;
+    }
+    if (service.status === "completed" || service.status === "cancelled") {
+      res.status(409).json({ error: "A completed or cancelled service cannot be modified" });
+      return;
+    }
+    if (req.user!.role === "Service Technician" && input.status === "cancelled") {
+      res.status(403).json({ error: "Technicians cannot cancel service requests" });
+      return;
+    }
+    if (input.status === "completed" && (!service.assignedTo || !service.workPerformed.trim())) {
+      res.status(400).json({ error: "Assign the service and record work performed before completing it" });
+      return;
+    }
+    const now = new Date().toISOString();
+    db.transaction(() => {
+      const completedAt = input.status === "completed" ? now : null;
+      db.prepare("UPDATE services SET status = ?, completed_at = ?, updated_at = ? WHERE id = ?")
+        .run(input.status, completedAt, now, service.id);
+      recordAuditEvent(db, {
+        actor: req.user!,
+        action: input.status === "completed" ? "service.completed" : "service.status_changed",
+        targetType: "service",
+        targetId: service.id,
+        details: { from: service.status, to: input.status, completedAt }
+      });
+    })();
+    const updated = db.prepare(`${serviceSelect()} WHERE s.id = ?`).get(service.id) as ServiceRow;
+    res.json({ service: updated });
   });
 
   const notFound: RequestHandler = (_req, res) => res.status(404).json({ error: "Not found" });
