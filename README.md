@@ -52,12 +52,14 @@ User deletion is intentionally not provided: accounts are deactivated so histori
 
 - `GET /api/admin/audit-events?limit=50&offset=0` — list timestamped events with actor identity/role, action, target, and relevant change details.
 - `POST /api/services` — create a service record (starts in `received`).
-- `POST /api/services/:id/assign` — assign an active Service Technician with `{ "technicianUserId": "<user-id>" }`; assigning a new service moves it to `assigned`.
+- `GET /api/services/awaiting-assignment?limit=50&offset=0` — list unassigned `received` requests for administrators and service advisors. This API has no separate approval status, so `received` is the eligible pre-assignment state.
+- `GET /api/technicians?limit=50&offset=0` — list active technicians and their current active assignment counts for administrators and service advisors.
+- `POST /api/services/:id/assign` — assign an active Service Technician with `{ "technicianUserId": "<user-id>" }`; assigning a new service moves it to `assigned` and records who assigned it and when.
 - `GET /api/services/assigned?limit=50&offset=0` — list active assignments. Technicians see only their own; administrators and advisors can see all active assignments.
 - `PATCH /api/services/:id/execution` — record `workPerformed`, optional `notes`, and/or progress `status` (`in_progress`, `awaiting_parts`, etc.). Marking work `completed` requires an assigned technician and non-empty work performed; the server records `completedAt`.
 - `PATCH /api/services/:id/status` — update a service status to `received`, `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`. Completion through this route also requires assignment and recorded work.
 
-User creation/changes, successful logins, service assignment, execution updates, completion, and service-status changes are recorded in the same database transaction as their corresponding change. Completed and cancelled services cannot be modified. Audit details exclude passwords and include service work/notes where changed. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. The API migrates existing SQLite service tables to add assignment, execution, and completion fields. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
+User creation/changes, successful logins, service assignment, execution updates, completion, and service-status changes are recorded in the same database transaction as their corresponding change. Assignment records retain the technician, assigning staff member, and assignment timestamp. Completed and cancelled services cannot be modified. Audit details exclude passwords and include service work/notes where changed. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. The API migrates existing SQLite service tables to add assignment, execution, and completion fields. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
 
 ## Development checks
 
