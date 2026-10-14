@@ -23,6 +23,10 @@ export function initializeDatabase(db: AppDatabase): void {
       description TEXT NOT NULL,
       status TEXT NOT NULL CHECK (status IN ('received', 'assigned', 'in_progress', 'awaiting_parts', 'completed', 'cancelled')),
       created_by TEXT NOT NULL REFERENCES users(id),
+      assigned_to TEXT REFERENCES users(id),
+      work_performed TEXT NOT NULL DEFAULT '',
+      service_notes TEXT NOT NULL DEFAULT '',
+      completed_at TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -53,6 +57,22 @@ export function initializeDatabase(db: AppDatabase): void {
         SELECT RAISE(ABORT, 'audit events are immutable');
       END;
   `);
+
+  const serviceColumns = db.prepare("PRAGMA table_info(services)").all() as Array<{ name: string }>;
+  const existingColumns = new Set(serviceColumns.map(({ name }) => name));
+  if (!existingColumns.has("assigned_to")) {
+    db.exec("ALTER TABLE services ADD COLUMN assigned_to TEXT REFERENCES users(id)");
+  }
+  if (!existingColumns.has("work_performed")) {
+    db.exec("ALTER TABLE services ADD COLUMN work_performed TEXT NOT NULL DEFAULT ''");
+  }
+  if (!existingColumns.has("service_notes")) {
+    db.exec("ALTER TABLE services ADD COLUMN service_notes TEXT NOT NULL DEFAULT ''");
+  }
+  if (!existingColumns.has("completed_at")) {
+    db.exec("ALTER TABLE services ADD COLUMN completed_at TEXT");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_services_assigned_to ON services(assigned_to, status)");
 }
 
 export function openDatabase(databasePath = process.env.DATABASE_PATH ?? "./data/app.sqlite"): AppDatabase {
