@@ -70,6 +70,10 @@ interface ServiceRow {
   assignedTo: string | null;
   assignedTechnicianName: string | null;
   assignedTechnicianEmail: string | null;
+  assignedBy: string | null;
+  assigningStaffName: string | null;
+  assigningStaffEmail: string | null;
+  assignedAt: string | null;
   workPerformed: string;
   notes: string;
   completedAt: string | null;
@@ -81,10 +85,14 @@ function serviceSelect(): string {
   return `
     SELECT s.id, s.description, s.status, s.created_by AS createdBy,
            s.assigned_to AS assignedTo, u.display_name AS assignedTechnicianName,
-           u.email AS assignedTechnicianEmail, s.work_performed AS workPerformed,
+           u.email AS assignedTechnicianEmail, s.assigned_by AS assignedBy,
+           assigning.display_name AS assigningStaffName, assigning.email AS assigningStaffEmail,
+           s.assigned_at AS assignedAt, s.work_performed AS workPerformed,
            s.service_notes AS notes, s.completed_at AS completedAt,
            s.created_at AS createdAt, s.updated_at AS updatedAt
-    FROM services s LEFT JOIN users u ON u.id = s.assigned_to
+    FROM services s
+    LEFT JOIN users u ON u.id = s.assigned_to
+    LEFT JOIN users assigning ON assigning.id = s.assigned_by
   `;
 }
 
@@ -328,6 +336,45 @@ export function createApp(db: AppDatabase, jwtSecret: string): express.Express {
     res.status(201).json({ service: { id, description: input.description, status: "received", createdAt: now, updatedAt: now } });
   });
 
+  app.get("/api/services/awaiting-assignment", authenticate, requireRoles("Administrator", "Service Advisor"), (req, res) => {
+    const page = pagination(req, res);
+    if (!page) return;
+    const services = db.prepare(`
+      ${serviceSelect()}
+      WHERE s.status = 'received' AND s.assigned_to IS NULL
+      ORDER BY s.created_at ASC, s.id LIMIT ? OFFSET ?
+    `).all(page.limit, page.offset) as ServiceRow[];
+    const total = (db.prepare(`
+      SELECT COUNT(*) AS count FROM services
+      WHERE status = 'received' AND assigned_to IS NULL
+    `).get() as { count: number }).count;
+    res.json({ services, total, limit: page.limit, offset: page.offset });
+  });
+
+  app.get("/api/technicians", authenticate, requireRoles("Administrator", "Service Advisor"), (req, res) => {
+    const page = pagination(req, res);
+    if (!page) return;
+    const technicians = db.prepare(`
+      SELECT u.id, u.display_name AS displayName, u.email,
+             (SELECT COUNT(*) FROM services s
+              WHERE s.assigned_to = u.id AND s.status NOT IN ('completed', 'cancelled')) AS activeAssignments
+      FROM users u
+      WHERE u.role = 'Service Technician' AND u.is_active = 1
+      ORDER BY u.display_name COLLATE NOCASE, u.id
+      LIMIT ? OFFSET ?
+    `).all(page.limit, page.offset) as Array<{
+      id: string;
+      displayName: string;
+      email: string;
+      activeAssignments: number;
+    }>;
+    const total = (db.prepare(`
+      SELECT COUNT(*) AS count FROM users
+      WHERE role = 'Service Technician' AND is_active = 1
+    `).get() as { count: number }).count;
+    res.json({ technicians, total, limit: page.limit, offset: page.offset });
+  });
+
   app.get("/api/services/assigned", authenticate, requireRoles("Administrator", "Service Advisor", "Service Technician"), (req, res) => {
     const page = pagination(req, res);
     if (!page) return;
@@ -372,8 +419,11 @@ export function createApp(db: AppDatabase, jwtSecret: string): express.Express {
     const now = new Date().toISOString();
     const status = service.status === "received" ? "assigned" : service.status;
     db.transaction(() => {
-      db.prepare("UPDATE services SET assigned_to = ?, status = ?, updated_at = ? WHERE id = ?")
-        .run(technician.id, status, now, service.id);
+      db.prepare(`
+        UPDATE services
+        SET assigned_to = ?, assigned_by = ?, assigned_at = ?, status = ?, updated_at = ?
+        WHERE id = ?
+      `).run(technician.id, req.user!.id, now, status, now, service.id);
       recordAuditEvent(db, {
         actor: req.user!,
         action: "service.assigned",
@@ -381,6 +431,8 @@ export function createApp(db: AppDatabase, jwtSecret: string): express.Express {
         targetId: service.id,
         details: {
           assignedTo: { from: service.assignedTo, to: technician.id },
+          assignedBy: req.user!.id,
+          assignedAt: now,
           status: { from: service.status, to: status }
         }
       });

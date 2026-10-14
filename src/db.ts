@@ -24,6 +24,8 @@ export function initializeDatabase(db: AppDatabase): void {
       status TEXT NOT NULL CHECK (status IN ('received', 'assigned', 'in_progress', 'awaiting_parts', 'completed', 'cancelled')),
       created_by TEXT NOT NULL REFERENCES users(id),
       assigned_to TEXT REFERENCES users(id),
+      assigned_by TEXT REFERENCES users(id),
+      assigned_at TEXT,
       work_performed TEXT NOT NULL DEFAULT '',
       service_notes TEXT NOT NULL DEFAULT '',
       completed_at TEXT,
@@ -62,6 +64,12 @@ export function initializeDatabase(db: AppDatabase): void {
   const existingColumns = new Set(serviceColumns.map(({ name }) => name));
   if (!existingColumns.has("assigned_to")) {
     db.exec("ALTER TABLE services ADD COLUMN assigned_to TEXT REFERENCES users(id)");
+  }
+  if (!existingColumns.has("assigned_by")) {
+    db.exec("ALTER TABLE services ADD COLUMN assigned_by TEXT REFERENCES users(id)");
+  }
+  if (!existingColumns.has("assigned_at")) {
+    db.exec("ALTER TABLE services ADD COLUMN assigned_at TEXT");
   }
   if (!existingColumns.has("work_performed")) {
     db.exec("ALTER TABLE services ADD COLUMN work_performed TEXT NOT NULL DEFAULT ''");
