@@ -6,13 +6,21 @@ export type AppDatabase = Database.Database;
 
 export function initializeDatabase(db: AppDatabase): void {
   db.pragma("foreign_keys = ON");
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL COLLATE NOCASE UNIQUE,
       display_name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('Customer', 'Service Advisor', 'Service Technician', 'Administrator')),
+      role TEXT NOT NULL CHECK (
+        role IN (
+          'Customer',
+          'Service Advisor',
+          'Service Technician',
+          'Administrator'
+        )
+      ),
       is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -21,8 +29,38 @@ export function initializeDatabase(db: AppDatabase): void {
     CREATE TABLE IF NOT EXISTS services (
       id TEXT PRIMARY KEY,
       description TEXT NOT NULL,
-      status TEXT NOT NULL CHECK (status IN ('received', 'assigned', 'in_progress', 'awaiting_parts', 'completed', 'cancelled')),
+      status TEXT NOT NULL CHECK (
+        status IN (
+          'received',
+          'assigned',
+          'in_progress',
+          'awaiting_parts',
+          'completed',
+          'cancelled'
+        )
+      ),
       created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS customers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      phone TEXT NOT NULL,
+      address TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS vehicles (
+      id TEXT PRIMARY KEY,
+      customer_id TEXT NOT NULL REFERENCES customers(id),
+      registration_number TEXT NOT NULL COLLATE NOCASE UNIQUE,
+      make TEXT NOT NULL,
+      model TEXT NOT NULL,
+      year INTEGER NOT NULL CHECK (year BETWEEN 1886 AND 2100),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -39,14 +77,27 @@ export function initializeDatabase(db: AppDatabase): void {
       created_at TEXT NOT NULL
     );
 
-    CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at, id);
-    CREATE INDEX IF NOT EXISTS idx_audit_created_at ON audit_events(created_at DESC, id);
-    CREATE INDEX IF NOT EXISTS idx_audit_target ON audit_events(target_type, target_id);
+    CREATE INDEX IF NOT EXISTS idx_users_created_at
+      ON users(created_at, id);
+
+    CREATE INDEX IF NOT EXISTS idx_customers_created_at
+      ON customers(created_at, id);
+
+    CREATE INDEX IF NOT EXISTS idx_vehicles_customer_id
+      ON vehicles(customer_id, created_at, id);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_created_at
+      ON audit_events(created_at DESC, id);
+
+    CREATE INDEX IF NOT EXISTS idx_audit_target
+      ON audit_events(target_type, target_id);
+
     CREATE TRIGGER IF NOT EXISTS audit_events_no_update
       BEFORE UPDATE ON audit_events
       BEGIN
         SELECT RAISE(ABORT, 'audit events are immutable');
       END;
+
     CREATE TRIGGER IF NOT EXISTS audit_events_no_delete
       BEFORE DELETE ON audit_events
       BEGIN
@@ -55,10 +106,16 @@ export function initializeDatabase(db: AppDatabase): void {
   `);
 }
 
-export function openDatabase(databasePath = process.env.DATABASE_PATH ?? "./data/app.sqlite"): AppDatabase {
+export function openDatabase(
+  databasePath = process.env.DATABASE_PATH ?? "./data/app.sqlite"
+): AppDatabase {
   const path = resolve(databasePath);
+
   mkdirSync(dirname(path), { recursive: true });
+
   const db = new Database(path);
+
   initializeDatabase(db);
+
   return db;
 }

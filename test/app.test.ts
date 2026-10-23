@@ -213,3 +213,388 @@ test("rejects invalid user roles and malformed user updates", async () => {
   assert.equal(invalidRole.status, 400);
   assert.equal(emptyUpdate.status, 400);
 });
+test("service advisors can register and list customers", async () => {
+  const app = createApp(context.db, secret);
+
+  const advisor = await request(app)
+    .post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "advisor@example.com",
+      displayName: "Service Advisor",
+      password,
+      role: "Service Advisor"
+    });
+
+  assert.equal(advisor.status, 201);
+
+  const advisorToken = createToken(
+    {
+      id: advisor.body.user.id,
+      email: advisor.body.user.email,
+      displayName: advisor.body.user.displayName,
+      role: "Service Advisor"
+    },
+    secret
+  );
+
+  const created = await request(app)
+    .post("/api/customers")
+    .set("Authorization", `Bearer ${advisorToken}`)
+    .send({
+      name: "Priya Sharma",
+      email: "priya.sharma@example.com",
+      phone: "9876543210",
+      address: "Bengaluru"
+    });
+
+  assert.equal(created.status, 201);
+  assert.equal(created.body.customer.name, "Priya Sharma");
+  assert.equal(created.body.customer.email, "priya.sharma@example.com");
+  assert.equal(created.body.customer.phone, "9876543210");
+  assert.equal(created.body.customer.address, "Bengaluru");
+  assert.ok(created.body.customer.id);
+
+  const listed = await request(app)
+    .get("/api/customers")
+    .set("Authorization", `Bearer ${advisorToken}`);
+
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.total, 1);
+  assert.equal(
+    listed.body.customers[0].id,
+    created.body.customer.id
+  );
+});
+
+test("customer registration rejects invalid and duplicate details", async () => {
+  const app = createApp(context.db, secret);
+
+  const headers = {
+    Authorization: `Bearer ${context.adminToken}`
+  };
+
+  const missingFields = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "",
+      email: "not-an-email",
+      phone: ""
+    });
+
+  assert.equal(missingFields.status, 400);
+
+  const first = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "Alex Morgan",
+      email: "alex@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(first.status, 201);
+
+  const duplicate = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "Another Alex",
+      email: "ALEX@example.com",
+      phone: "9876543211"
+    });
+
+  assert.equal(duplicate.status, 409);
+});
+
+test("customers can be viewed and updated by authorized users", async () => {
+  const app = createApp(context.db, secret);
+
+  const headers = {
+    Authorization: `Bearer ${context.adminToken}`
+  };
+
+  const created = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "Jordan Lee",
+      email: "jordan@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(created.status, 201);
+
+  const customerId = created.body.customer.id;
+
+  const viewed = await request(app)
+    .get(`/api/customers/${customerId}`)
+    .set(headers);
+
+  assert.equal(viewed.status, 200);
+  assert.equal(viewed.body.customer.name, "Jordan Lee");
+
+  const updated = await request(app)
+    .patch(`/api/customers/${customerId}`)
+    .set(headers)
+    .send({
+      name: "Jordan Lee Updated",
+      phone: "9123456780"
+    });
+
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.customer.name, "Jordan Lee Updated");
+  assert.equal(updated.body.customer.phone, "9123456780");
+  assert.equal(updated.body.customer.email, "jordan@example.com");
+
+  const missing = await request(app)
+    .get("/api/customers/does-not-exist")
+    .set(headers);
+
+  assert.equal(missing.status, 404);
+});
+
+test("customer routes reject unauthorized access", async () => {
+  const app = createApp(context.db, secret);
+
+  const unauthenticated = await request(app)
+    .get("/api/customers");
+
+  const customerRoleRequest = await request(app)
+    .get("/api/customers")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+
+  const forbiddenCreate = await request(app)
+    .post("/api/customers")
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({
+      name: "Unauthorized User",
+      email: "unauthorized@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(unauthenticated.status, 401);
+  assert.equal(customerRoleRequest.status, 403);
+  assert.equal(forbiddenCreate.status, 403);
+});
+test("service advisors can register vehicles for existing customers", async () => {
+  const app = createApp(context.db, secret);
+
+  const advisor = await request(app)
+    .post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "vehicle-advisor@example.com",
+      displayName: "Vehicle Advisor",
+      password,
+      role: "Service Advisor"
+    });
+
+  assert.equal(advisor.status, 201);
+
+  const advisorToken = createToken(
+    {
+      id: advisor.body.user.id,
+      email: advisor.body.user.email,
+      displayName: advisor.body.user.displayName,
+      role: "Service Advisor"
+    },
+    secret
+  );
+
+  const customer = await request(app)
+    .post("/api/customers")
+    .set("Authorization", `Bearer ${advisorToken}`)
+    .send({
+      name: "Alex Morgan",
+      email: "alex.morgan@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(customer.status, 201);
+
+  const created = await request(app)
+    .post("/api/vehicles")
+    .set("Authorization", `Bearer ${advisorToken}`)
+    .send({
+      customerId: customer.body.customer.id,
+      registrationNumber: "KA01AB1234",
+      make: "Toyota",
+      model: "Corolla",
+      year: 2022
+    });
+
+  assert.equal(created.status, 201);
+  assert.equal(created.body.vehicle.registrationNumber, "KA01AB1234");
+  assert.equal(created.body.vehicle.make, "Toyota");
+  assert.equal(created.body.vehicle.model, "Corolla");
+  assert.equal(created.body.vehicle.year, 2022);
+  assert.equal(
+    created.body.vehicle.customerId,
+    customer.body.customer.id
+  );
+});
+
+test("vehicle registration rejects invalid details and duplicate registration numbers", async () => {
+  const app = createApp(context.db, secret);
+
+  const headers = {
+    Authorization: `Bearer ${context.adminToken}`
+  };
+
+  const customer = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "Jordan Lee",
+      email: "jordan.lee@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(customer.status, 201);
+
+  const customerId = customer.body.customer.id;
+
+  const invalid = await request(app)
+    .post("/api/vehicles")
+    .set(headers)
+    .send({
+      customerId,
+      registrationNumber: "",
+      make: "",
+      model: "Corolla",
+      year: 1800
+    });
+
+  assert.equal(invalid.status, 400);
+
+  const missingCustomer = await request(app)
+    .post("/api/vehicles")
+    .set(headers)
+    .send({
+      customerId: "nonexistent-customer",
+      registrationNumber: "KA01AB1234",
+      make: "Toyota",
+      model: "Corolla",
+      year: 2022
+    });
+
+  assert.equal(missingCustomer.status, 404);
+
+  const first = await request(app)
+    .post("/api/vehicles")
+    .set(headers)
+    .send({
+      customerId,
+      registrationNumber: "KA01AB1234",
+      make: "Toyota",
+      model: "Corolla",
+      year: 2022
+    });
+
+  assert.equal(first.status, 201);
+
+  const duplicate = await request(app)
+    .post("/api/vehicles")
+    .set(headers)
+    .send({
+      customerId,
+      registrationNumber: "ka01ab1234",
+      make: "Honda",
+      model: "City",
+      year: 2023
+    });
+
+  assert.equal(duplicate.status, 409);
+});
+
+test("authorized users can list, view, and update customer vehicles", async () => {
+  const app = createApp(context.db, secret);
+
+  const headers = {
+    Authorization: `Bearer ${context.adminToken}`
+  };
+
+  const customer = await request(app)
+    .post("/api/customers")
+    .set(headers)
+    .send({
+      name: "Sam Taylor",
+      email: "sam.taylor@example.com",
+      phone: "9876543210"
+    });
+
+  assert.equal(customer.status, 201);
+
+  const customerId = customer.body.customer.id;
+
+  const created = await request(app)
+    .post("/api/vehicles")
+    .set(headers)
+    .send({
+      customerId,
+      registrationNumber: "KA03CD5678",
+      make: "Honda",
+      model: "City",
+      year: 2021
+    });
+
+  assert.equal(created.status, 201);
+
+  const vehicleId = created.body.vehicle.id;
+
+  const listed = await request(app)
+    .get(`/api/customers/${customerId}/vehicles`)
+    .set(headers);
+
+  assert.equal(listed.status, 200);
+  assert.equal(listed.body.total, 1);
+  assert.equal(listed.body.vehicles[0].id, vehicleId);
+
+  const viewed = await request(app)
+    .get(`/api/vehicles/${vehicleId}`)
+    .set(headers);
+
+  assert.equal(viewed.status, 200);
+  assert.equal(viewed.body.vehicle.model, "City");
+
+  const updated = await request(app)
+    .patch(`/api/vehicles/${vehicleId}`)
+    .set(headers)
+    .send({
+      model: "City ZX",
+      year: 2023
+    });
+
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.vehicle.model, "City ZX");
+  assert.equal(updated.body.vehicle.year, 2023);
+
+  const missing = await request(app)
+    .get("/api/vehicles/nonexistent-vehicle")
+    .set(headers);
+
+  assert.equal(missing.status, 404);
+});
+
+test("vehicle routes reject unauthorized access", async () => {
+  const app = createApp(context.db, secret);
+
+  const unauthenticated = await request(app)
+    .get("/api/vehicles/nonexistent-vehicle");
+
+  const forbidden = await request(app)
+    .post("/api/vehicles")
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({
+      customerId: "customer-1",
+      registrationNumber: "KA05EF9012",
+      make: "Toyota",
+      model: "Innova",
+      year: 2024
+    });
+
+  assert.equal(unauthenticated.status, 401);
+  assert.equal(forbidden.status, 403);
+});
