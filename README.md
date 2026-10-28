@@ -1,6 +1,6 @@
 # Vehicle Service Maintenance API
 
-A REST API for administering vehicle-service users, enforcing role-based access, and keeping append-only audit records of administrative and service-status activity. It uses TypeScript, Express, and SQLite.
+A REST API for administering vehicle-service users, enforcing role-based access, and keeping append-only audit records of administrative and service activity. It uses TypeScript, Express, and SQLite.
 
 ## Requirements
 
@@ -34,27 +34,36 @@ npm run dev
 
 The API listens on port `3000` by default. Configure `PORT` and `DATABASE_PATH` in `.env` to override the defaults. `GET /health` is an unauthenticated liveness check.
 
+The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
+
 ## Authentication and authorization
 
 `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns a one-hour bearer token. For authenticated requests, send the returned token in the `Authorization` header with the `Bearer` scheme. Passwords are hashed with bcrypt, login requests are rate limited, and each request loads the user's current active state and role from the database so role changes and deactivation take effect immediately.
 
-Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Service creation is limited to administrators and service advisors; service status updates are limited to administrators, service advisors, and technicians.
+Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Customers can submit service requests for vehicles in their linked customer profile. Service advisors and administrators can submit requests on behalf of customers and review requests. Operational status updates are limited to administrators, service advisors, and technicians, and require a request to be validated first.
 
 ## User administration
 
-- `GET /api/admin/users?limit=50&offset=0` — list users (passwords and password hashes are never returned).
-- `POST /api/admin/users` — create a user with `email`, `displayName`, `password`, and `role`.
-- `PATCH /api/admin/users/:id` — update `email`, `displayName`, `password`, `role`, and/or `isActive`.
+- `GET /api/admin/users?limit=50&offset=0` - list users (passwords and password hashes are never returned).
+- `POST /api/admin/users` - create a user with `email`, `displayName`, `password`, and `role`. Customer accounts also require `customerId` to link the login to an existing customer record.
+- `PATCH /api/admin/users/:id` - update `email`, `displayName`, `password`, `role`, `isActive`, and/or `customerId`.
 
 User deletion is intentionally not provided: accounts are deactivated so historical records and audit attribution are retained. Administrators cannot change their own role or deactivate themselves, and the last active administrator cannot be demoted or deactivated.
 
-## Audit logging and service activity
+## Service request intake and review
 
-- `GET /api/admin/audit-events?limit=50&offset=0` — list timestamped events with actor identity/role, action, target, and relevant change details.
-- `POST /api/services` — create a service record (starts in `received`).
-- `PATCH /api/services/:id/status` — set a status to `received`, `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`.
+- `GET /api/services?status=submitted&limit=50&offset=0` - list requests. Customers only see requests for their linked customer profile; staff can filter by public status.
+- `GET /api/services/:id` - view a request, subject to the same customer ownership rules.
+- `POST /api/services` - submit a request with `vehicleId`, and optionally `serviceType` and `description`. Customer submissions must use a vehicle owned by their linked profile. New requests start as `submitted` so staff can validate missing or incorrect details.
+- `PATCH /api/services/:id` - correct a submitted or rejected request. The owning customer or staff can edit it; a rejected request returns to `submitted` for review.
+- `PATCH /api/services/:id/review` - advisors and administrators validate a complete request with `{ "decision": "validate" }` or reject it with `{ "decision": "reject", "reason": "..." }`.
+- `PATCH /api/services/:id/status` - after validation, staff can update the operational status to `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`, following the permitted status transitions.
 
-User creation/changes, successful logins, service creation, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
+The public request status is `submitted`, `validated`, or `rejected` during intake and review. After validation, it reflects the operational workflow status. Rejection reasons and review attribution are retained, and resubmission clears the prior rejection details.
+
+## Audit logging
+
+User creation/changes, successful logins, service creation, service review decisions, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
 
 ## Development checks
 

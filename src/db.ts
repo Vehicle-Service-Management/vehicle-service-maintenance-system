@@ -29,6 +29,8 @@ export function initializeDatabase(db: AppDatabase): void {
     CREATE TABLE IF NOT EXISTS services (
       id TEXT PRIMARY KEY,
       description TEXT NOT NULL,
+      vehicle_id TEXT REFERENCES vehicles(id),
+      service_type TEXT,
       status TEXT NOT NULL CHECK (
         status IN (
           'received',
@@ -39,6 +41,12 @@ export function initializeDatabase(db: AppDatabase): void {
           'cancelled'
         )
       ),
+      review_status TEXT NOT NULL DEFAULT 'submitted' CHECK (
+        review_status IN ('submitted', 'validated', 'rejected')
+      ),
+      reviewed_by TEXT REFERENCES users(id),
+      reviewed_at TEXT,
+      rejection_reason TEXT,
       created_by TEXT NOT NULL REFERENCES users(id),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -50,6 +58,7 @@ export function initializeDatabase(db: AppDatabase): void {
       email TEXT NOT NULL COLLATE NOCASE UNIQUE,
       phone TEXT NOT NULL,
       address TEXT,
+      user_id TEXT UNIQUE REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -80,12 +89,6 @@ export function initializeDatabase(db: AppDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_users_created_at
       ON users(created_at, id);
 
-    CREATE INDEX IF NOT EXISTS idx_customers_created_at
-      ON customers(created_at, id);
-
-    CREATE INDEX IF NOT EXISTS idx_vehicles_customer_id
-      ON vehicles(customer_id, created_at, id);
-
     CREATE INDEX IF NOT EXISTS idx_audit_created_at
       ON audit_events(created_at DESC, id);
 
@@ -104,6 +107,47 @@ export function initializeDatabase(db: AppDatabase): void {
         SELECT RAISE(ABORT, 'audit events are immutable');
       END;
   `);
+
+  ensureColumn(db, "services", "vehicle_id", "TEXT REFERENCES vehicles(id)");
+  ensureColumn(db, "services", "service_type", "TEXT");
+  ensureColumn(
+    db,
+    "services",
+    "review_status",
+    "TEXT NOT NULL DEFAULT 'submitted' CHECK (review_status IN ('submitted', 'validated', 'rejected'))"
+  );
+  ensureColumn(db, "services", "reviewed_by", "TEXT REFERENCES users(id)");
+  ensureColumn(db, "services", "reviewed_at", "TEXT");
+  ensureColumn(db, "services", "rejection_reason", "TEXT");
+  ensureColumn(db, "customers", "user_id", "TEXT REFERENCES users(id) ON DELETE SET NULL");
+
+  db.exec(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_customers_user_id
+      ON customers(user_id) WHERE user_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS idx_customers_created_at
+      ON customers(created_at, id);
+    CREATE INDEX IF NOT EXISTS idx_vehicles_customer_id
+      ON vehicles(customer_id, created_at, id);
+    CREATE INDEX IF NOT EXISTS idx_services_vehicle_created_at
+      ON services(vehicle_id, created_at, id);
+    CREATE INDEX IF NOT EXISTS idx_services_review_queue
+      ON services(review_status, created_at, id);
+  `);
+}
+
+function ensureColumn(
+  db: AppDatabase,
+  table: string,
+  column: string,
+  definition: string
+): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{
+    name: string;
+  }>;
+
+  if (!columns.some((existing) => existing.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 export function openDatabase(
