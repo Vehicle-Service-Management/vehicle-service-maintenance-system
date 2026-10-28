@@ -33,7 +33,7 @@ git fetch origin
 git switch --create feature/service-request-intake-review --track origin/feature/service-request-intake-review
 ```
 
-## Run on a fresh laptop
+
 
 ### 1. Install prerequisites
 
