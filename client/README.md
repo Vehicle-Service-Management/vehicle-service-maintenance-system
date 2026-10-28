@@ -21,13 +21,16 @@ Vite proxies `/api` and `/health` requests to the Express server on port `3000` 
 
 ## Sprint 1 request workflows
 
-- Customers can submit service requests for their linked vehicles, view their requests, and correct a rejected request before resubmitting it.
-- Service advisors and administrators can create requests for a customer and review the submitted queue. Review supports validation or return with a required reason.
+- The role-based service-centre workspace includes a dashboard with live request and vehicle summary counts.
+- Customers can submit service requests for their linked vehicles, page through their request history, and correct a rejected request before resubmitting it.
+- Service advisors and administrators can search the customer list when creating a request, review paged submitted/returned queues, correct requests created on a customer’s behalf, validate complete requests, or return them with a required reason.
 - The client calls the existing bearer-token API. Role checks in the interface only control navigation; the API remains responsible for authorization.
 
 ## Login integration contract for issue #11
 
-The login screen remains a separate task. Its component can use the shared session interface without changing the request and review screens:
+The full login screen remains a separate task. In Vite development mode, the signed-out page shows a small local preview sign-in form that calls the real `/api/auth/login` endpoint, so the sprint workflows can be tried before issue #11 is finished. This is not a role bypass: use existing credentials, and the API still checks the actual token, role and vehicle ownership. The development sign-in is omitted from production builds.
+
+The issue #11 login screen can use the shared session interface without changing the request and review screens:
 
 ```tsx
 import App from './App'

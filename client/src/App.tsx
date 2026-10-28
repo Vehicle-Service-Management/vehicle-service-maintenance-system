@@ -1,13 +1,22 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { DevSignIn } from './auth/DevSignIn'
 import { useSession } from './auth/useSession'
 import { CustomerRequestList } from './features/services/CustomerRequestList'
+import { ServiceOverview } from './features/services/ServiceOverview'
 import { ServiceRequestForm } from './features/services/ServiceRequestForm'
 import { ServiceReviewQueue } from './features/services/ServiceReviewQueue'
 import { checkApiHealth } from './lib/api'
 import './App.css'
 
 type ConnectionState = 'checking' | 'connected' | 'unavailable'
-type WorkspaceView = 'create' | 'requests' | 'review'
+type WorkspaceView = 'overview' | 'create' | 'requests' | 'review'
+
+const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
+  overview: { eyebrow: 'WORKSPACE', title: 'Overview' },
+  create: { eyebrow: 'SERVICE INTAKE', title: 'New service request' },
+  requests: { eyebrow: 'CUSTOMER PORTAL', title: 'My service requests' },
+  review: { eyebrow: 'SERVICE OPERATIONS', title: 'Request review' },
+}
 
 async function getConnectionState(): Promise<Exclude<ConnectionState, 'checking'>> {
   try {
@@ -17,10 +26,26 @@ async function getConnectionState(): Promise<Exclude<ConnectionState, 'checking'
   }
 }
 
+function Brand() {
+  return (
+    <a className="brand" href="/" aria-label="VSMMS home">
+      <span className="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" fill="none">
+          <path d="M5 19.5h22l-2.1-6.2a3 3 0 0 0-2.8-2H9.9a3 3 0 0 0-2.8 2L5 19.5Z" />
+          <path d="M4 19.5v5h3m21-5v5h-3M8 24.5h16M9 15h14M10 11.3l1.1 4M22 11.3l-1.1 4" />
+          <circle cx="9" cy="21.5" r="1" /><circle cx="23" cy="21.5" r="1" />
+        </svg>
+      </span>
+      <span className="brand-copy"><strong>VSMMS</strong><span>Vehicle service &amp; maintenance</span></span>
+    </a>
+  )
+}
+
 export default function App({ signedOutContent }: { signedOutContent?: ReactNode }) {
   const { session, clearSession } = useSession()
   const [connection, setConnection] = useState<ConnectionState>('checking')
   const [selectedView, setSelectedView] = useState<WorkspaceView | null>(null)
+  const [mobileNavOpen, setMobileNavOpen] = useState(false)
 
   const refreshConnection = useCallback(async () => {
     setConnection('checking')
@@ -33,108 +58,90 @@ export default function App({ signedOutContent }: { signedOutContent?: ReactNode
     return () => { active = false }
   }, [])
 
-  const isCustomer = session?.user.role === 'Customer'
-  const isAdvisor = session?.user.role === 'Service Advisor' || session?.user.role === 'Administrator'
-  const view = selectedView ?? (isAdvisor ? 'review' : 'create')
-  const connectionLabel = {
-    checking: 'Checking connection',
-    connected: 'API connected',
-    unavailable: 'API unavailable',
-  }[connection]
+  const role = session?.user.role
+  const isCustomer = role === 'Customer'
+  const isAdvisor = role === 'Service Advisor' || role === 'Administrator'
+  const isTechnician = role === 'Service Technician'
+  const view = selectedView ?? 'overview'
+  const page = pageTitles[view]
+
+  function navigate(next: WorkspaceView) {
+    setSelectedView(next)
+    setMobileNavOpen(false)
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-screen">
+        <div className="auth-screen__top"><Brand />{connection !== 'connected' && <div className="connection-tools"><span className={`connection connection--${connection}`} role="status"><i className="connection-dot" />{connection === 'checking' ? 'Connecting to API' : 'API unavailable'}</span><button className="connection-retry" type="button" onClick={() => void refreshConnection()} disabled={connection === 'checking'} aria-label="Check API connection again">↻</button></div>}</div>
+        <main className="auth-screen__content">
+          <section className="auth-intro">
+            <p className="eyebrow"><span /> VEHICLE SERVICE OPERATIONS</p>
+            <h1>Every vehicle.<br />Every visit.<br /><em>One clear record.</em></h1>
+            <p>Manage service requests from the first customer report through advisor review and workshop handoff.</p>
+            <div className="auth-workflow" aria-label="Service workflow">
+              <span><b>01</b> Request</span><i /><span><b>02</b> Review</span><i /><span><b>03</b> Service</span>
+            </div>
+          </section>
+          <div className="auth-screen__form">
+            {signedOutContent ?? (import.meta.env.DEV ? <DevSignIn /> : <div className="auth-production-note"><h2>Sign in to continue</h2><p>Use your service-centre account to open the workspace.</p></div>)}
+          </div>
+        </main>
+        <footer className="auth-screen__footer"><span>VSMMS · VEHICLE SERVICE &amp; MAINTENANCE</span><span>REQUEST INTAKE · ADVISOR REVIEW · WORKSHOP CARE</span></footer>
+      </div>
+    )
+  }
+
+  if (isTechnician) {
+    return (
+      <div className="app-shell app-shell--workspace">
+        <header className="workspace-topbar workspace-topbar--solo"><Brand /><div className="workspace-user"><span><strong>{session.user.displayName}</strong><small>{role}</small></span><button className="button button--quiet" type="button" onClick={() => { clearSession(); setSelectedView(null) }}>Sign out</button></div></header>
+        <main className="workspace-main"><div className="panel role-placeholder"><p className="eyebrow"><span /> TECHNICIAN WORKSPACE</p><h2>Assigned service work</h2><p>The technician assignment and service execution screens belong to the related sprint tasks and will connect here.</p></div></main>
+      </div>
+    )
+  }
 
   return (
-    <div className="app-shell">
-      <header className="topbar">
-        <a className="brand" href="/" aria-label="VSMMS home">
-          <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 32 32" fill="none">
-              <path d="M5 19.5h22l-2.1-6.2a3 3 0 0 0-2.8-2H9.9a3 3 0 0 0-2.8 2L5 19.5Z" />
-              <path d="M4 19.5v5h3m21-5v5h-3M8 24.5h16M9 15h14M10 11.3l1.1 4M22 11.3l-1.1 4" />
-              <circle cx="9" cy="21.5" r="1" /><circle cx="23" cy="21.5" r="1" />
-            </svg>
-          </span>
-          <span className="brand-copy"><strong>VSMMS</strong><span>Vehicle service &amp; maintenance</span></span>
-        </a>
-
-        {session ? (
-          <div className="account-menu">
-            <div className="account-copy"><strong>{session.user.displayName}</strong><span>{session.user.role}</span></div>
-            <button className="button button--quiet" type="button" onClick={() => { clearSession(); setSelectedView(null) }}>Sign out</button>
-          </div>
-        ) : (
-          <div className={`connection connection--${connection}`} role="status" aria-live="polite">
-            <span className="connection-dot" aria-hidden="true" /><span>{connectionLabel}</span>
-            <button className="refresh-button" type="button" onClick={() => void refreshConnection()} disabled={connection === 'checking'} aria-label="Check API connection again" title="Check API connection again">
-              <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M16.2 8A6.5 6.5 0 0 0 5 4.5L3.5 6M3.5 6V2.8M3.5 6h3.2M3.8 12A6.5 6.5 0 0 0 15 15.5l1.5-1.5m0 0v3.2m0-3.2h-3.2" /></svg>
-            </button>
-          </div>
-        )}
-      </header>
-
-      {session && (
-        <nav className="workspace-nav" aria-label="Service workspace">
-          {isCustomer && <>
-            <button className={view === 'create' ? 'is-active' : ''} type="button" onClick={() => setSelectedView('create')}>New request</button>
-            <button className={view === 'requests' ? 'is-active' : ''} type="button" onClick={() => setSelectedView('requests')}>My requests</button>
-          </>}
-          {isAdvisor && <>
-            <button className={view === 'review' ? 'is-active' : ''} type="button" onClick={() => setSelectedView('review')}>Review queue</button>
-            <button className={view === 'create' ? 'is-active' : ''} type="button" onClick={() => setSelectedView('create')}>Create for customer</button>
-          </>}
+    <div className="app-shell app-shell--workspace">
+      <aside className={`sidebar${mobileNavOpen ? ' sidebar--open' : ''}`}>
+        <div className="sidebar__brand"><Brand /><button className="sidebar__close" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation">×</button></div>
+        <div className="sidebar__label">SERVICE CENTRE</div>
+        <nav className="sidebar-nav" aria-label="Main navigation">
+          <button className={view === 'overview' ? 'is-active' : ''} type="button" onClick={() => navigate('overview')}><span className="nav-icon">⌂</span>Overview</button>
+          {isCustomer ? <>
+            <div className="sidebar__label sidebar__label--spaced">MY SERVICE</div>
+            <button className={view === 'create' ? 'is-active' : ''} type="button" onClick={() => navigate('create')}><span className="nav-icon">＋</span>New request</button>
+            <button className={view === 'requests' ? 'is-active' : ''} type="button" onClick={() => navigate('requests')}><span className="nav-icon">▤</span>My requests</button>
+          </> : isAdvisor ? <>
+            <div className="sidebar__label sidebar__label--spaced">REQUESTS</div>
+            <button className={view === 'review' ? 'is-active' : ''} type="button" onClick={() => navigate('review')}><span className="nav-icon">▤</span>Review queue</button>
+            <button className={view === 'create' ? 'is-active' : ''} type="button" onClick={() => navigate('create')}><span className="nav-icon">＋</span>Create for customer</button>
+          </> : null}
         </nav>
-      )}
+      </aside>
 
-      <main className={session ? 'workspace-main' : ''}>
-        {session && isCustomer && view === 'create' && <ServiceRequestForm session={session} onSaved={() => setSelectedView('requests')} />}
-        {session && isCustomer && view === 'requests' && <CustomerRequestList session={session} />}
-        {session && isAdvisor && view === 'review' && <ServiceReviewQueue session={session} />}
-        {session && isAdvisor && view === 'create' && <ServiceRequestForm session={session} onSaved={() => setSelectedView('review')} />}
-        {session && !isCustomer && !isAdvisor && (
-          <div className="empty-state role-placeholder"><h2>Technician workspace</h2><p>Service execution and assigned-work screens will connect here when that sprint feature is implemented.</p></div>
-        )}
+      {mobileNavOpen && <button className="sidebar-backdrop" type="button" onClick={() => setMobileNavOpen(false)} aria-label="Close navigation overlay" />}
 
-        {!session && (
-          <>
-            <section className="welcome" aria-labelledby="welcome-title">
-              <div className="welcome-copy">
-                <p className="eyebrow"><span /> SERVICE OPERATIONS</p>
-                <h1 id="welcome-title">Every service visit starts with a clear next step.</h1>
-                <p className="welcome-description">A shared workspace for the people who look after vehicles, service requests, and the work that brings them back to the road.</p>
-                {signedOutContent ? (
-                  <div className="signed-out-slot">{signedOutContent}</div>
-                ) : (
-                  <div className="signed-out-note">
-                    <strong>Sign-in is the next integration point</strong>
-                    <span>Once the login screen supplies a bearer-token session, your request and advisor workspaces are ready here.</span>
-                  </div>
-                )}
-              </div>
-              <aside className="welcome-art" aria-label="Service operations workspace illustration">
-                <div className="orbit orbit--outer" /><div className="orbit orbit--inner" />
-                <div className="art-label art-label--top"><span>01</span> REQUEST INTAKE</div>
-                <div className="art-label art-label--bottom"><span>02</span> WORKSHOP CARE</div>
-                <div className="vehicle-card">
-                  <div className="vehicle-card__top">
-                    <span className="vehicle-card__icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="m7 27 3-9a4 4 0 0 1 3.8-2.8h20.4A4 4 0 0 1 38 18l3 9v9h-5v-4H12v4H7v-9Z" /><path d="M11 26h26M15 20h18M14 29.5h.01M34 29.5h.01" /><circle cx="15" cy="29.5" r="2" /><circle cx="33" cy="29.5" r="2" /></svg></span>
-                    <span className="vehicle-card__status"><i /> READY FOR SERVICE</span>
-                  </div>
-                  <div className="vehicle-card__line" /><div className="vehicle-card__caption">BUILT AROUND THE WORKFLOW</div>
-                  <div className="vehicle-card__title">From request<br />to road again.</div>
-                  <div className="vehicle-card__footer"><span>Customer</span><b /><span>Advisor</span><b /><span>Technician</span></div>
-                </div>
-                <div className="art-stamp" aria-hidden="true">V<br />S<br />M</div>
-              </aside>
-            </section>
-            <section className="foundation" aria-label="Project information">
-              <div className="foundation-heading"><span className="section-index">01 / 03</span><h2>One connected service journey</h2></div>
-              <p>Customers submit requests for registered vehicles. Advisors review the request, validate complete details, or return it with feedback for correction.</p>
-              <div className="foundation-meta"><span><i className="meta-mark" /> RESPONSIVE WEB CLIENT</span><span>REACT&nbsp; / &nbsp;TYPESCRIPT</span><span>API STATUS: {connection === 'connected' ? 'ONLINE' : connection === 'checking' ? 'CHECKING' : 'OFFLINE'}</span></div>
-            </section>
-          </>
-        )}
-      </main>
+      <div className="workspace-frame">
+        <header className="workspace-topbar">
+          <button className="mobile-menu" type="button" onClick={() => setMobileNavOpen(true)} aria-label="Open navigation">☰</button>
+          <div className="workspace-heading"><p>{page.eyebrow}</p><h1>{page.title}</h1></div>
+          <div className="workspace-topbar__actions">
+            {connection !== 'connected' && <div className="connection-tools"><span className={`connection connection--${connection}`} role="status"><i className="connection-dot" />{connection === 'checking' ? 'Connecting' : 'API unavailable'}</span><button className="connection-retry" type="button" onClick={() => void refreshConnection()} disabled={connection === 'checking'} aria-label="Check API connection again">↻</button></div>}
+            <div className="workspace-user"><span className="workspace-user__avatar" aria-hidden="true">{session.user.displayName.slice(0, 1).toUpperCase()}</span><span><strong>{session.user.displayName}</strong><small>{role}</small></span></div>
+            <button className="button button--quiet workspace-signout" type="button" onClick={() => { clearSession(); setSelectedView(null) }}>Sign out</button>
+          </div>
+        </header>
 
-      <footer className="footer"><span>VEHICLE SERVICE &amp; MAINTENANCE MANAGEMENT SYSTEM</span><span>{session ? 'SERVICE WORKSPACE' : 'WORKSPACE FOUNDATION'}</span></footer>
+        <main className="workspace-main">
+          {view === 'overview' && <ServiceOverview session={session} onNavigate={navigate} />}
+          {isCustomer && view === 'create' && <ServiceRequestForm session={session} onSaved={() => navigate('requests')} />}
+          {isCustomer && view === 'requests' && <CustomerRequestList session={session} />}
+          {isAdvisor && view === 'review' && <ServiceReviewQueue session={session} />}
+          {isAdvisor && view === 'create' && <ServiceRequestForm session={session} onSaved={() => navigate('review')} />}
+        </main>
+        <footer className="workspace-footer"><span>VSMMS · SERVICE OPERATIONS</span><span>INTAKE → REVIEW → WORKSHOP</span></footer>
+      </div>
     </div>
   )
 }

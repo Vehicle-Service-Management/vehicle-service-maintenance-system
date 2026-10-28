@@ -11,6 +11,7 @@ interface Props {
 export function ServiceRequestForm({ session, request, onSaved, onCancel }: Props) {
   const isStaff = session.user.role === 'Service Advisor' || session.user.role === 'Administrator'
   const [customers, setCustomers] = useState<Customer[]>([])
+  const [customerSearch, setCustomerSearch] = useState('')
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [customerId, setCustomerId] = useState(request?.customerId ?? '')
   const [vehicleId, setVehicleId] = useState(request?.vehicleId ?? '')
@@ -29,10 +30,21 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
       setError('')
       try {
         if (isStaff) {
-          const result = await apiRequest<{ customers: Customer[] }>('/api/customers?limit=100', session.accessToken)
-          if (!active) return
-          setCustomers(result.customers)
-          const selectedCustomerId = request?.customerId ?? result.customers[0]?.id ?? ''
+          const allCustomers: Customer[] = []
+          let offset = 0
+          let total = 1
+          while (offset < total) {
+            const page = await apiRequest<{ customers: Customer[]; total: number; limit: number }>(
+              `/api/customers?limit=100&offset=${offset}`,
+              session.accessToken,
+            )
+            allCustomers.push(...page.customers)
+            total = page.total
+            offset += page.limit
+            if (!active) return
+          }
+          setCustomers(allCustomers)
+          const selectedCustomerId = request?.customerId ?? allCustomers[0]?.id ?? ''
           setCustomerId(selectedCustomerId)
           if (selectedCustomerId) {
             const vehicleResult = await apiRequest<{ vehicles: Vehicle[] }>(
@@ -76,6 +88,18 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
     }
   }
 
+  function changeCustomerSearch(value: string) {
+    setCustomerSearch(value)
+    const matched = customers.find((customer) => `${customer.name} — ${customer.email}` === value)
+    if (matched) {
+      void changeCustomer(matched.id)
+    } else {
+      setCustomerId('')
+      setVehicleId('')
+      setVehicles([])
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError('')
@@ -100,7 +124,9 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
         : await apiRequest<{ service: ServiceRequest }>('/api/services', session.accessToken, {
             method: 'POST', body: JSON.stringify(body),
           })
-      setNotice(request ? 'Your corrected request was resubmitted for review.' : 'Your service request was submitted for review.')
+      setNotice(request
+        ? isStaff ? 'The corrected request was resubmitted for review.' : 'Your corrected request was resubmitted for review.'
+        : 'Your service request was submitted for review.')
       onSaved(result.service)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Could not save the service request.')
@@ -109,6 +135,8 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
     }
   }
 
+  const selectedCustomer = customers.find((customer) => customer.id === customerId)
+
   if (loading) return <p className="state-message" role="status">Loading customer and vehicle records…</p>
 
   return (
@@ -116,7 +144,7 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
       <div className="panel-heading">
         <div>
           <p className="eyebrow"><span /> REQUEST INTAKE</p>
-          <h2 id="request-form-title">{request ? 'Correct your request' : 'Request a service visit'}</h2>
+          <h2 id="request-form-title">{request ? isStaff ? 'Correct request details' : 'Correct your request' : 'Request a service visit'}</h2>
           <p className="panel-intro">Choose a registered vehicle and describe the work needed. An advisor will review it before service is assigned.</p>
         </div>
         {onCancel && <button className="button button--quiet" type="button" onClick={onCancel}>Back</button>}
@@ -140,10 +168,17 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
           {isStaff && (
             <label className="field field--wide">
               <span>Customer</span>
-              <select value={customerId} onChange={(event) => void changeCustomer(event.target.value)} required>
-                <option value="">Choose a customer</option>
-                {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.email}</option>)}
-              </select>
+              <input
+                list="service-customer-options"
+                value={selectedCustomer ? `${selectedCustomer.name} — ${selectedCustomer.email}` : customerSearch}
+                onChange={(event) => changeCustomerSearch(event.target.value)}
+                required
+                placeholder="Search by customer name or email"
+                autoComplete="off"
+              />
+              <datalist id="service-customer-options">
+                {customers.map((customer) => <option key={customer.id} value={`${customer.name} — ${customer.email}`} />)}
+              </datalist>
             </label>
           )}
 

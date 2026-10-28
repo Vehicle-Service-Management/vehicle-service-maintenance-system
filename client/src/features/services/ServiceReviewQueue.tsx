@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiError, apiRequest, type AuthSession, type Customer, type ServiceRequest, type Vehicle } from '../../lib/api'
+import { ServiceRequestForm } from './ServiceRequestForm'
 
 interface ReviewDetail {
   service: ServiceRequest
   vehicle: Vehicle | null
   customer: Customer | null
 }
+
+const pageSize = 20
 
 async function lookupOptional<T>(request: Promise<T>): Promise<T | null> {
   try {
@@ -17,25 +20,30 @@ async function lookupOptional<T>(request: Promise<T>): Promise<T | null> {
 }
 
 export function ServiceReviewQueue({ session }: { session: AuthSession }) {
+  const [queueStatus, setQueueStatus] = useState<'submitted' | 'rejected'>('submitted')
   const [requests, setRequests] = useState<ServiceRequest[]>([])
   const [selected, setSelected] = useState<ReviewDetail | null>(null)
+  const [correcting, setCorrecting] = useState<ServiceRequest | null>(null)
   const [rejecting, setRejecting] = useState(false)
   const [reason, setReason] = useState('')
+  const [offset, setOffset] = useState(0)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
-  const loadData = useCallback(() => apiRequest<{ services: ServiceRequest[] }>(
-    '/api/services?status=submitted&limit=100',
+  const loadData = useCallback(() => apiRequest<{ services: ServiceRequest[]; total: number }>(
+    `/api/services?status=${queueStatus}&limit=${pageSize}&offset=${offset}`,
     session.accessToken,
-  ), [session.accessToken])
+  ), [offset, queueStatus, session.accessToken])
 
   const refresh = useCallback(async () => {
     try {
       const result = await loadData()
       setRequests(result.services)
+      setTotal(result.total)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load the review queue.')
     } finally {
@@ -46,7 +54,10 @@ export function ServiceReviewQueue({ session }: { session: AuthSession }) {
   useEffect(() => {
     let active = true
     void loadData().then((result) => {
-      if (active) setRequests(result.services)
+      if (active) {
+        setRequests(result.services)
+        setTotal(result.total)
+      }
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : 'Could not load the review queue.')
     }).finally(() => {
@@ -109,13 +120,43 @@ export function ServiceReviewQueue({ session }: { session: AuthSession }) {
       setRejecting(false)
       setReason('')
       setRequests((current) => current.filter((request) => request.id !== result.service.id))
-      setLoading(true)
-      await refresh()
+      if (requests.length === 1 && offset > 0) {
+        setOffset(Math.max(0, offset - pageSize))
+      } else {
+        setLoading(true)
+        await refresh()
+      }
     } catch (reviewError) {
       setError(reviewError instanceof Error ? reviewError.message : 'Could not save the review decision.')
     } finally {
       setSaving(false)
     }
+  }
+
+  function changeQueue(nextStatus: 'submitted' | 'rejected') {
+    setQueueStatus(nextStatus)
+    setOffset(0)
+    setSelected(null)
+    setCorrecting(null)
+    setError('')
+    setNotice('')
+    setLoading(true)
+  }
+
+  if (correcting) {
+    return (
+      <ServiceRequestForm
+        session={session}
+        request={correcting}
+        onCancel={() => setCorrecting(null)}
+        onSaved={() => {
+          setCorrecting(null)
+          setQueueStatus('submitted')
+          setOffset(0)
+          setLoading(true)
+        }}
+      />
+    )
   }
 
   return (
@@ -131,6 +172,11 @@ export function ServiceReviewQueue({ session }: { session: AuthSession }) {
 
       {notice && <p className="notice notice--success" role="status">{notice}</p>}
       {error && <p className="notice notice--error" role="alert">{error}</p>}
+
+      <div className="queue-tabs" role="tablist" aria-label="Service request queue">
+        <button className={queueStatus === 'submitted' ? 'is-active' : ''} type="button" role="tab" aria-selected={queueStatus === 'submitted'} onClick={() => changeQueue('submitted')}>Submitted</button>
+        <button className={queueStatus === 'rejected' ? 'is-active' : ''} type="button" role="tab" aria-selected={queueStatus === 'rejected'} onClick={() => changeQueue('rejected')}>Returned for correction</button>
+      </div>
 
       {detailLoading && <p className="state-message" role="status">Loading request details…</p>}
 
@@ -175,28 +221,40 @@ export function ServiceReviewQueue({ session }: { session: AuthSession }) {
       )}
 
       <div className="queue-heading">
-        <h3>Submitted requests <span>{requests.length}</span></h3>
+        <h3>{queueStatus === 'submitted' ? 'Submitted requests' : 'Returned requests'} <span>{total}</span></h3>
       </div>
-      {loading ? <p className="state-message" role="status">Loading submitted requests…</p> : requests.length === 0 ? (
-        <div className="empty-state"><h3>The review queue is clear</h3><p>New service requests will appear here.</p></div>
+      {loading ? <p className="state-message" role="status">Loading {queueStatus === 'submitted' ? 'submitted' : 'returned'} requests…</p> : requests.length === 0 ? (
+        <div className="empty-state"><h3>{queueStatus === 'submitted' ? 'The review queue is clear' : 'No requests need correction'}</h3><p>{queueStatus === 'submitted' ? 'New service requests will appear here.' : 'Requests returned to customers or created on their behalf will appear here.'}</p></div>
       ) : (
         <div className="request-list">
           {requests.map((request) => (
             <article className="request-card" key={request.id}>
               <div className="request-card__top">
                 <div>
-                  <p className="request-card__eyebrow">Submitted {new Date(request.createdAt).toLocaleDateString()}</p>
+                  <p className="request-card__eyebrow">{queueStatus === 'submitted' ? 'Submitted' : 'Returned'} {new Date(request.updatedAt).toLocaleDateString()}</p>
                   <h3>{request.serviceType || 'Service type needs attention'}</h3>
                 </div>
-                <span className="status-pill status-pill--submitted">submitted</span>
+                <span className={`status-pill status-pill--${request.status}`}>{request.status}</span>
               </div>
               <p className="request-card__description">{request.description || 'No description was provided.'}</p>
+              {queueStatus === 'rejected' && request.rejectionReason && <p className="notice notice--error"><strong>Feedback sent:</strong> {request.rejectionReason}</p>}
               <div className="request-card__footer">
                 <span>Vehicle linked: {request.vehicleId ? 'Yes' : 'No'}</span>
-                <button className="button button--secondary" type="button" onClick={() => void openRequest(request)}>Review request</button>
+                {queueStatus === 'submitted'
+                  ? <button className="button button--secondary" type="button" onClick={() => void openRequest(request)}>Review request</button>
+                  : <button className="button button--secondary" type="button" onClick={() => setCorrecting(request)}>Correct and resubmit</button>}
               </div>
             </article>
           ))}
+        </div>
+      )}
+      {!loading && total > pageSize && (
+        <div className="pagination-controls">
+          <span>Showing {offset + 1}–{Math.min(offset + requests.length, total)} of {total}</span>
+          <div>
+            <button className="button button--quiet" type="button" onClick={() => setOffset(Math.max(0, offset - pageSize))} disabled={offset === 0}>Previous</button>
+            <button className="button button--quiet" type="button" onClick={() => setOffset(offset + pageSize)} disabled={offset + pageSize >= total}>Next</button>
+          </div>
         </div>
       )}
     </section>

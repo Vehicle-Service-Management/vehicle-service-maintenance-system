@@ -43,7 +43,7 @@ npm run dev:client
 
 Open the Vite URL printed in the terminal (normally `http://localhost:5173`). Vite proxies `/api` and `/health` requests to the API on port `3000`.
 
-The client includes customer request submission/correction and a staff review queue. The login UI is being implemented separately; integration instructions for the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
+The client includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, and a live overview. For local preview before the full login UI is ready, development mode provides a sign-in form that uses the real API credentials. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
 
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 

@@ -2,22 +2,27 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiRequest, type AuthSession, type ServiceRequest, type Vehicle } from '../../lib/api'
 import { ServiceRequestForm } from './ServiceRequestForm'
 
+const pageSize = 20
+
 export function CustomerRequestList({ session }: { session: AuthSession }) {
   const [requests, setRequests] = useState<ServiceRequest[]>([])
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [editing, setEditing] = useState<ServiceRequest | null>(null)
+  const [offset, setOffset] = useState(0)
+  const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   const loadData = useCallback(() => Promise.all([
-        apiRequest<{ services: ServiceRequest[] }>('/api/services?limit=100', session.accessToken),
+        apiRequest<{ services: ServiceRequest[]; total: number }>(`/api/services?limit=${pageSize}&offset=${offset}`, session.accessToken),
         apiRequest<{ vehicles: Vehicle[] }>('/api/me/vehicles', session.accessToken),
-      ]), [session.accessToken])
+      ]), [offset, session.accessToken])
 
   const refresh = useCallback(async () => {
     try {
       const [requestResult, vehicleResult] = await loadData()
       setRequests(requestResult.services)
+      setTotal(requestResult.total)
       setVehicles(vehicleResult.vehicles)
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Could not load your requests.')
@@ -31,6 +36,7 @@ export function CustomerRequestList({ session }: { session: AuthSession }) {
     void loadData().then(([requestResult, vehicleResult]) => {
       if (!active) return
       setRequests(requestResult.services)
+      setTotal(requestResult.total)
       setVehicles(vehicleResult.vehicles)
     }).catch((loadError: unknown) => {
       if (active) setError(loadError instanceof Error ? loadError.message : 'Could not load your requests.')
@@ -94,6 +100,15 @@ export function CustomerRequestList({ session }: { session: AuthSession }) {
               </article>
             )
           })}
+        </div>
+      )}
+      {!loading && total > pageSize && (
+        <div className="pagination-controls">
+          <span>Showing {offset + 1}–{Math.min(offset + requests.length, total)} of {total}</span>
+          <div>
+            <button className="button button--quiet" type="button" onClick={() => setOffset(Math.max(0, offset - pageSize))} disabled={offset === 0}>Previous</button>
+            <button className="button button--quiet" type="button" onClick={() => setOffset(offset + pageSize)} disabled={offset + pageSize >= total}>Next</button>
+          </div>
         </div>
       )}
     </section>
