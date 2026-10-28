@@ -812,6 +812,37 @@ test("authorized users can list, view, and update customer vehicles", async () =
   assert.equal(missing.status, 404);
 });
 
+test("customers can list only vehicles linked to their own profile", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerRows = context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  const vehicleRows = context.db.prepare(`
+    INSERT INTO vehicles (
+      id, customer_id, registration_number, make, model, year, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  customerRows.run("own-profile", "Customer User", context.customer.email, "9876543210", context.customer.id, now, now);
+  customerRows.run("other-profile", "Other Customer", "other@example.com", "9876543211", null, now, now);
+  vehicleRows.run("own-car", "own-profile", "KA10AA1001", "Honda", "City", 2021, now, now);
+  vehicleRows.run("other-car", "other-profile", "KA10AA1002", "Tata", "Nexon", 2022, now, now);
+
+  const ownVehicles = await request(app)
+    .get("/api/me/vehicles")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  const forbiddenStaffAccess = await request(app)
+    .get("/api/me/vehicles")
+    .set("Authorization", `Bearer ${context.adminToken}`);
+
+  assert.equal(ownVehicles.status, 200);
+  assert.equal(ownVehicles.body.total, 1);
+  assert.deepEqual(ownVehicles.body.vehicles.map((vehicle: { id: string }) => vehicle.id), ["own-car"]);
+  assert.equal(forbiddenStaffAccess.status, 403);
+});
+
 test("vehicle routes reject unauthorized access", async () => {
   const app = createApp(context.db, secret);
 

@@ -34,6 +34,15 @@ npm run dev
 
 The API listens on port `3000` by default. Configure `PORT` and `DATABASE_PATH` in `.env` to override the defaults. `GET /health` is an unauthenticated liveness check.
 
+The React + TypeScript + Vite client is in `client/`. For local full-stack development, keep the API running in one terminal and start the client in another:
+
+```sh
+npm --prefix client install
+npm run dev:client
+```
+
+Open the Vite URL printed in the terminal (normally `http://localhost:5173`). Vite proxies `/api` and `/health` requests to the API on port `3000`.
+
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 
 ## Authentication and authorization
@@ -52,6 +61,7 @@ User deletion is intentionally not provided: accounts are deactivated so histori
 
 ## Service request intake and review
 
+- `GET /api/me/vehicles` - list vehicles linked to the authenticated Customer account for request selection. Staff can use `GET /api/customers/:id/vehicles`.
 - `GET /api/services?status=submitted&limit=50&offset=0` - list requests. Customers only see requests for their linked customer profile; staff can filter by public status.
 - `GET /api/services/:id` - view a request, subject to the same customer ownership rules.
 - `POST /api/services` - submit a request with `vehicleId`, and optionally `serviceType` and `description`. Customer submissions must use a vehicle owned by their linked profile. New requests start as `submitted` so staff can validate missing or incorrect details.
@@ -69,6 +79,7 @@ User creation/changes, successful logins, service creation, service review decis
 
 ```sh
 npm run typecheck
+npm run typecheck:client
 npm test
 npm run build
 ```

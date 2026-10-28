@@ -9,6 +9,46 @@ export function createVehiclesRouter(context: RouteContext) {
   const router = express.Router();
   const { db, authenticate } = context;
 
+  // Let a customer select only vehicles linked to their own profile.
+  router.get(
+    "/me/vehicles",
+    authenticate,
+    requireRoles("Customer"),
+    (req, res) => {
+      const customer = db.prepare(`
+        SELECT id
+        FROM customers
+        WHERE user_id = ?
+      `).get(req.user!.id) as { id: string } | undefined;
+
+      if (!customer) {
+        res.status(403).json({ error: "Customer account is not linked to a customer record" });
+        return;
+      }
+
+      const vehicles = db.prepare(`
+        SELECT
+          id,
+          customer_id AS customerId,
+          registration_number AS registrationNumber,
+          make,
+          model,
+          year,
+          created_at AS createdAt,
+          updated_at AS updatedAt
+        FROM vehicles
+        WHERE customer_id = ?
+        ORDER BY created_at DESC, id
+      `).all(customer.id) as VehicleRow[];
+
+      res.json({
+        customerId: customer.id,
+        vehicles,
+        total: vehicles.length
+      });
+    }
+  );
+
   // Register a vehicle for an existing customer.
   router.post(
     "/vehicles",

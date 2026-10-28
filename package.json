@@ -8,8 +8,10 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/src/index.js",
     "dev": "tsx watch src/index.ts",
+    "dev:client": "npm --prefix client run dev",
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:client": "npm --prefix client run typecheck",
     "bootstrap-admin": "npm run build && node dist/scripts/bootstrap-admin.js"
   },
   "dependencies": {
