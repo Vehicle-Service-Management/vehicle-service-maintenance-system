@@ -4,46 +4,191 @@ A REST API for administering vehicle-service users, enforcing role-based access,
 
 ## Requirements
 
-- Node.js 20 or later
+- Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
 - npm
 
-## Setup
+## Get the team branch
+
+The current working baseline is `feature/service-request-intake-review`. It contains the service-request intake and review workflow and is published on `origin`. It has not been merged into `main`.
+
+For a fresh checkout:
+
+```powershell
+git clone --branch feature/service-request-intake-review https://github.com/Vehicle-Service-Management/vehicle-service-maintenance-system.git
+Set-Location vehicle-service-maintenance-system
+```
+
+If the repository is already cloned and you have a local branch with this name, update it:
+
+```powershell
+git fetch origin
+git switch feature/service-request-intake-review
+git pull --ff-only origin feature/service-request-intake-review
+```
+
+If you have not created the local branch yet, fetch and create it as a tracking branch:
+
+```powershell
+git fetch origin
+git switch --create feature/service-request-intake-review --track origin/feature/service-request-intake-review
+```
+
+## Run on a fresh laptop
+
+### 1. Install prerequisites
+
+- Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
+- npm (included with Node.js)
+- Git
+
+Check the installed versions:
+
+```powershell
+node --version
+npm --version
+git --version
+```
+
+### 2. Install dependencies
+
+Run these commands from the repository root:
 
 ```powershell
 npm install
-Copy-Item .env.example .env
+npm --prefix client install
 ```
 
-Set `JWT_SECRET` in `.env` to a cryptographically random value of at least 32 characters. The example value is a placeholder and must not be used outside local development.
+### 3. Configure local environment
 
-Create the first administrator once, before starting the API. Set `BOOTSTRAP_ADMIN_PASSWORD` to a unique password of at least 12 characters, then run:
+Create a local environment file and edit its secret:
 
 ```powershell
-$env:BOOTSTRAP_ADMIN_PASSWORD = "<unique password>"
+Copy-Item .env.example .env
+notepad .env
+```
+
+Replace the example `JWT_SECRET` with a random value containing at least 32 characters. Keep the `.env` file private; it is ignored by Git. The default `PORT` is `3000`, and the default SQLite file is `data/app.sqlite`. Both are local to this checkout and are not shared through Git.
+
+### 4. Create the first local administrator
+
+Do this once for a new local database, before starting the API. Choose a unique password of at least 12 characters:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_PASSWORD = "<your local admin password>"
 npm run bootstrap-admin -- admin@example.com "System Administrator"
 Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
 ```
 
-The bootstrap command only runs while the database has no users. It stores a bcrypt password hash and an audit event; it never stores or logs the supplied password. Keep the password in a secrets manager in deployed environments.
+Use the same email and password to sign in to the development client. The bootstrap command only works when the database has no users. It stores a bcrypt hash and an audit event, not the password itself. If you already bootstrapped this database, do not run it again.
 
-Start the API:
+### 5. Start the backend and frontend
 
-```sh
+Keep each process running in its own PowerShell terminal. In terminal 1, start the API from the repository root:
+
+```powershell
 npm run dev
 ```
 
-The API listens on port `3000` by default. Configure `PORT` and `DATABASE_PATH` in `.env` to override the defaults. `GET /health` is an unauthenticated liveness check.
+The API listens on `http://localhost:3000`. Check it from another terminal:
 
-The React + TypeScript + Vite client is in `client/`. For local full-stack development, keep the API running in one terminal and start the client in another:
+```powershell
+Invoke-RestMethod http://localhost:3000/health
+```
 
-```sh
-npm --prefix client install
+In terminal 2, from the repository root, start the Vite client:
+
+```powershell
 npm run dev:client
 ```
 
-Open the Vite URL printed in the terminal (normally `http://localhost:5173`). Vite proxies `/api` and `/health` requests to the API on port `3000`.
+Open the local URL printed by Vite (normally `http://localhost:5173`). The client proxies `/api` and `/health` to the API. In development mode, the sign-in panel calls the real API login endpoint; it does not bypass authentication or role checks.
 
-The client includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, and a live overview. For local preview before the full login UI is ready, development mode provides a sign-in form that uses the real API credentials. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
+## Create local records to try the request flow
+
+A fresh SQLite database contains no customers, vehicles, or service requests. The current client does not include customer/vehicle registration screens, so add the records through the API once before trying the workflow. The following PowerShell example creates a customer, a vehicle, and a linked customer login using the admin account. These records are saved only in your local `data/app.sqlite` file.
+
+Run this in a third PowerShell terminal. Enter the admin credentials created above when prompted:
+
+```powershell
+$base = "http://localhost:3000"
+$adminEmail = Read-Host "Admin account email"
+$adminPassword = Read-Host "Admin account password"
+
+$login = Invoke-RestMethod -Method Post -Uri "$base/api/auth/login" `
+  -ContentType "application/json" `
+  -Body (@{ email = $adminEmail; password = $adminPassword } | ConvertTo-Json)
+$headers = @{ Authorization = "Bearer $($login.accessToken)" }
+
+$stamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+$customerEmail = "demo.customer.$stamp@example.com"
+$customerName = "Demo Customer"
+$customer = Invoke-RestMethod -Method Post -Uri "$base/api/customers" `
+  -Headers $headers -ContentType "application/json" `
+  -Body (@{ name = $customerName; email = $customerEmail; phone = "9876543210" } | ConvertTo-Json)
+
+$vehicle = Invoke-RestMethod -Method Post -Uri "$base/api/vehicles" `
+  -Headers $headers -ContentType "application/json" `
+  -Body (@{
+    customerId = $customer.customer.id
+    registrationNumber = "DEMO-$stamp"
+    make = "Toyota"
+    model = "Corolla"
+    year = 2022
+  } | ConvertTo-Json)
+
+$customerPassword = Read-Host "Choose a customer password (12 or more characters)"
+$customerAccount = Invoke-RestMethod -Method Post -Uri "$base/api/admin/users" `
+  -Headers $headers -ContentType "application/json" `
+  -Body (@{
+    email = $customerEmail
+    displayName = $customerName
+    password = $customerPassword
+    role = "Customer"
+    customerId = $customer.customer.id
+  } | ConvertTo-Json)
+
+Write-Output "Created customer $customerEmail"
+Write-Output "Created vehicle $($vehicle.vehicle.registrationNumber)"
+Write-Output "Created linked customer login $($customerAccount.user.email)"
+```
+
+To try customer submission, sign out of the website, sign in with the customer email and password, choose **New request**, select the registered vehicle, and submit a service type and description. To try advisor review, sign out and sign in again with the administrator account, then open **Review queue**. The submitted request should appear there; validate it or return it with feedback. The customer can then see the result under **My requests**.
+
+The local database and `.env` are intentionally ignored by Git. Each teammate has a separate database and needs to create their own local records. Do not commit the database or real credentials.
+
+## Continue implementation on top of this branch
+
+Create a separate feature branch from the shared baseline instead of committing directly to the shared branch. For example, to work on issue #11:
+
+```powershell
+git fetch origin
+git switch --create feature/login-integration origin/feature/service-request-intake-review
+```
+
+Make and verify the change, then commit and publish your branch:
+
+```powershell
+git status
+npm test
+npm run typecheck
+npm run typecheck:client
+npm --prefix client run lint
+npm run build
+npm --prefix client run build
+git add path/to/your-changed-file
+git commit -m "feat: describe your change"
+git push --set-upstream origin feature/login-integration
+```
+
+Replace the example branch name and `path/to/your-changed-file` with the branch and file names for your task.
+
+Open a pull request with your feature branch as the source. Until the team chooses a different integration target, use `feature/service-request-intake-review` as the base so the work builds on this baseline. Coordinate with teammates before editing shared API contracts, role/session types, or the same client components.
+
+Docker is not required for this development workflow. It can be added later for consistent full-project packaging and deployment.
+
+## Project layout and development notes
+
+The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, and a live overview. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
 
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 
