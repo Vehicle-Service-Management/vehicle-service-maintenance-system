@@ -1,41 +1,26 @@
-# Vehicle Service Maintenance API
+# Vehicle Service & Maintenance Management System
 
-A REST API for administering vehicle-service users, enforcing role-based access, and keeping append-only audit records of administrative and service activity. It uses TypeScript, Express, and SQLite.
+A full-stack vehicle service and maintenance application. The client is built with React, TypeScript, and Vite; the REST API uses TypeScript and Express; SQLite stores users, customers, vehicles, service requests, and append-only audit records.
 
-## Requirements
+## Get the latest shared baseline
 
-- Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
-- npm
-
-## Get the team branch
-
-The current working baseline is `feature/service-request-intake-review`. It contains the service-request intake and review workflow and is published on `origin`. It has not been merged into `main`.
-
-For a fresh checkout:
+The customer and vehicle management screens and the service request intake and review workflow are merged into `main`. For a fresh checkout:
 
 ```powershell
-git clone --branch feature/service-request-intake-review https://github.com/Vehicle-Service-Management/vehicle-service-maintenance-system.git
+git clone --branch main https://github.com/Vehicle-Service-Management/vehicle-service-maintenance-system.git
 Set-Location vehicle-service-maintenance-system
 ```
 
-If the repository is already cloned and you have a local branch with this name, update it:
+To update an existing checkout:
 
 ```powershell
 git fetch origin
-git switch feature/service-request-intake-review
-git pull --ff-only origin feature/service-request-intake-review
-```
-
-If you have not created the local branch yet, fetch and create it as a tracking branch:
-
-```powershell
-git fetch origin
-git switch --create feature/service-request-intake-review --track origin/feature/service-request-intake-review
+git switch main
+git pull --ff-only origin main
 ```
 
 
-
-### 1. Install prerequisites
+## Install prerequisites
 
 - Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
 - npm (included with Node.js)
@@ -49,7 +34,7 @@ npm --version
 git --version
 ```
 
-### 2. Install dependencies
+### Install dependencies
 
 Run these commands from the repository root:
 
@@ -58,7 +43,7 @@ npm install
 npm --prefix client install
 ```
 
-### 3. Configure local environment
+### Configure local environment
 
 Create a local environment file and edit its secret:
 
@@ -69,7 +54,7 @@ notepad .env
 
 Replace the example `JWT_SECRET` with a random value containing at least 32 characters. Keep the `.env` file private; it is ignored by Git. The default `PORT` is `3000`, and the default SQLite file is `data/app.sqlite`. Both are local to this checkout and are not shared through Git.
 
-### 4. Create the first local administrator
+### Create the first local administrator
 
 Do this once for a new local database, before starting the API. Choose a unique password of at least 12 characters:
 
@@ -81,7 +66,7 @@ Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
 
 Use the same email and password to sign in to the development client. The bootstrap command only works when the database has no users. It stores a bcrypt hash and an audit event, not the password itself. If you already bootstrapped this database, do not run it again.
 
-### 5. Start the backend and frontend
+### Start the backend and frontend
 
 Keep each process running in its own PowerShell terminal. In terminal 1, start the API from the repository root:
 
@@ -103,11 +88,11 @@ npm run dev:client
 
 Open the local URL printed by Vite (normally `http://localhost:5173`). The client proxies `/api` and `/health` to the API. In development mode, the sign-in panel calls the real API login endpoint; it does not bypass authentication or role checks.
 
-## Create local records to try the request flow
+## Try customer, vehicle, and service request workflows
 
-A fresh SQLite database contains no customers, vehicles, or service requests. The current client does not include customer/vehicle registration screens, so add the records through the API once before trying the workflow. The following PowerShell example creates a customer, a vehicle, and a linked customer login using the admin account. These records are saved only in your local `data/app.sqlite` file.
+A fresh SQLite database contains no customers, vehicles, or service requests. Sign in with an Administrator or Service Advisor account and use the **Customers** screen to register a customer, then the **Vehicles** screen to register a vehicle for that customer. The customer and vehicle screens support listing and updating records as well.
 
-Run this in a third PowerShell terminal. Enter the admin credentials created above when prompted:
+To test the customer portal, create a Customer user linked to the customer record. User administration currently has no client screen, so create the linked account through the API. Run this in a third PowerShell terminal while the API is running; enter the administrator credentials created above:
 
 ```powershell
 $base = "http://localhost:3000"
@@ -119,50 +104,37 @@ $login = Invoke-RestMethod -Method Post -Uri "$base/api/auth/login" `
   -Body (@{ email = $adminEmail; password = $adminPassword } | ConvertTo-Json)
 $headers = @{ Authorization = "Bearer $($login.accessToken)" }
 
-$stamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
-$customerEmail = "demo.customer.$stamp@example.com"
-$customerName = "Demo Customer"
-$customer = Invoke-RestMethod -Method Post -Uri "$base/api/customers" `
-  -Headers $headers -ContentType "application/json" `
-  -Body (@{ name = $customerName; email = $customerEmail; phone = "9876543210" } | ConvertTo-Json)
-
-$vehicle = Invoke-RestMethod -Method Post -Uri "$base/api/vehicles" `
-  -Headers $headers -ContentType "application/json" `
-  -Body (@{
-    customerId = $customer.customer.id
-    registrationNumber = "DEMO-$stamp"
-    make = "Toyota"
-    model = "Corolla"
-    year = 2022
-  } | ConvertTo-Json)
+$customers = Invoke-RestMethod -Method Get -Uri "$base/api/customers?limit=100" -Headers $headers
+$customers.customers | Select-Object id, name, email | Format-Table
+$customerId = Read-Host "Customer ID to link"
+$customer = $customers.customers | Where-Object { $_.id -eq $customerId }
+if (-not $customer) { throw "Customer ID was not in the list above." }
 
 $customerPassword = Read-Host "Choose a customer password (12 or more characters)"
 $customerAccount = Invoke-RestMethod -Method Post -Uri "$base/api/admin/users" `
   -Headers $headers -ContentType "application/json" `
   -Body (@{
-    email = $customerEmail
-    displayName = $customerName
+    email = $customer.email
+    displayName = $customer.name
     password = $customerPassword
     role = "Customer"
-    customerId = $customer.customer.id
+    customerId = $customer.id
   } | ConvertTo-Json)
 
-Write-Output "Created customer $customerEmail"
-Write-Output "Created vehicle $($vehicle.vehicle.registrationNumber)"
 Write-Output "Created linked customer login $($customerAccount.user.email)"
 ```
 
-To try customer submission, sign out of the website, sign in with the customer email and password, choose **New request**, select the registered vehicle, and submit a service type and description. To try advisor review, sign out and sign in again with the administrator account, then open **Review queue**. The submitted request should appear there; validate it or return it with feedback. The customer can then see the result under **My requests**.
+Sign out of the website and sign in with the linked customer email and password. Choose **New request**, select the registered vehicle, and submit a service type and description. Then sign in as an Administrator or Service Advisor and open **Review queue**. Validate the request or return it with feedback. Sign back in as the customer to see the result in **My requests** and correct and resubmit a returned request.
 
 The local database and `.env` are intentionally ignored by Git. Each teammate has a separate database and needs to create their own local records. Do not commit the database or real credentials.
 
-## Continue implementation on top of this branch
+## Continue implementation from `main`
 
-Create a separate feature branch from the shared baseline instead of committing directly to the shared branch. For example, to work on issue #11:
+Create a feature branch from the latest `main` instead of committing directly to `main`. For example, to work on issue #11:
 
 ```powershell
 git fetch origin
-git switch --create feature/login-integration origin/feature/service-request-intake-review
+git switch --create feature/login-integration origin/main
 ```
 
 Make and verify the change, then commit and publish your branch:
@@ -182,13 +154,13 @@ git push --set-upstream origin feature/login-integration
 
 Replace the example branch name and `path/to/your-changed-file` with the branch and file names for your task.
 
-Open a pull request with your feature branch as the source. Until the team chooses a different integration target, use `feature/service-request-intake-review` as the base so the work builds on this baseline. Coordinate with teammates before editing shared API contracts, role/session types, or the same client components.
+Open a pull request with `main` as the base and your feature branch as the compare branch. Coordinate with teammates before editing shared API contracts, role/session types, or the same client components.
 
 Docker is not required for this development workflow. It can be added later for consistent full-project packaging and deployment.
 
 ## Project layout and development notes
 
-The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, and a live overview. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
+The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer and vehicle registration/list/update screens, customer request submission/correction, an advisor review queue, and an overview. The full production login screen, technician assignment, and service execution screens remain separate implementation work. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
 
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 
@@ -206,6 +178,20 @@ Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrato
 
 User deletion is intentionally not provided: accounts are deactivated so historical records and audit attribution are retained. Administrators cannot change their own role or deactivate themselves, and the last active administrator cannot be demoted or deactivated.
 
+## Customer and vehicle management
+
+Customer and vehicle records can be managed by Administrators and Service Advisors. Customer accounts can only see vehicles linked to their own customer profile.
+
+- `POST /api/customers` - register a customer with `name`, `email`, `phone`, and optional `address`.
+- `GET /api/customers?limit=50&offset=0` and `GET /api/customers/:id` - list or view customer records.
+- `PATCH /api/customers/:id` - update customer contact details.
+- `POST /api/vehicles` - register a vehicle with `customerId`, `registrationNumber`, `make`, `model`, and `year`.
+- `GET /api/customers/:id/vehicles` - list vehicles registered to a customer.
+- `GET /api/vehicles/:id` and `PATCH /api/vehicles/:id` - view or update a vehicle.
+- `GET /api/me/vehicles` - list vehicles linked to the authenticated Customer account.
+
+The web client provides customer and vehicle registration, list, and update screens for staff. To enable customer sign-in, an Administrator creates a Customer user through `POST /api/admin/users` and supplies the existing record's `customerId`.
+
 ## Service request intake and review
 
 - `GET /api/me/vehicles` - list vehicles linked to the authenticated Customer account for request selection. Staff can use `GET /api/customers/:id/vehicles`.
@@ -220,7 +206,7 @@ The public request status is `submitted`, `validated`, or `rejected` during inta
 
 ## Audit logging
 
-User creation/changes, successful logins, service creation, service review decisions, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
+User creation/changes, successful logins, customer and vehicle creation/updates, service creation, service review decisions, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
 
 ## Development checks
 
@@ -228,5 +214,7 @@ User creation/changes, successful logins, service creation, service review decis
 npm run typecheck
 npm run typecheck:client
 npm test
+npm --prefix client run lint
 npm run build
+npm --prefix client run build
 ```
