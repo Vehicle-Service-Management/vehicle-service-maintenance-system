@@ -26,6 +26,9 @@ export interface Customer {
   name: string
   email: string
   phone: string
+  address: string | null
+  createdAt?: string
+  updatedAt?: string
 }
 
 export interface ServiceRequest {
