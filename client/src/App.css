@@ -916,3 +916,109 @@ h1 {
   .pagination-controls > div { width: 100%; }
   .pagination-controls .button { flex: 1; }
 }
+.management-page {
+  display: grid;
+  gap: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.management-panel {
+  min-width: 0;
+  padding: 24px;
+}
+
+.management-panel > p {
+  color: var(--text-muted, #687386);
+  line-height: 1.6;
+}
+
+.management-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 24px;
+}
+
+.management-form label {
+  display: grid;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.management-form input,
+.management-form textarea,
+.management-form select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--border, #d7dce4);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  font: inherit;
+}
+
+.management-form textarea {
+  resize: vertical;
+}
+
+.management-form input:focus,
+.management-form textarea:focus,
+.management-form select:focus {
+  outline: 2px solid var(--accent, #64748b);
+  outline-offset: 2px;
+}
+
+.management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  grid-column: 1 / -1;
+}
+
+.management-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.management-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.management-table th,
+.management-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid var(--border, #e2e6ed);
+  vertical-align: top;
+}
+
+.management-table th {
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.management-table td {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .management-panel {
+    padding: 16px;
+  }
+
+  .management-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .management-table th,
+  .management-table td {
+    padding: 10px 8px;
+  }
+}
