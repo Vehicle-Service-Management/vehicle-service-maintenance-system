@@ -10,6 +10,25 @@ import type { AuthenticatedUser } from "../src/types";
 const secret = "test-only-secret-with-at-least-32-characters";
 const password = "correct horse battery staple";
 
+test("database initialization migrates existing service and customer tables", () => {
+  const db = new Database(":memory:");
+  db.exec(`
+    CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, display_name TEXT NOT NULL, password_hash TEXT NOT NULL, role TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE customers (id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE, phone TEXT NOT NULL, address TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE services (id TEXT PRIMARY KEY, description TEXT NOT NULL, status TEXT NOT NULL, created_by TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+  `);
+
+  initializeDatabase(db);
+
+  const customerColumns = (db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).map(({ name }) => name);
+  const serviceColumns = (db.prepare("PRAGMA table_info(services)").all() as Array<{ name: string }>).map(({ name }) => name);
+  assert.ok(customerColumns.includes("user_id"));
+  for (const column of ["vehicle_id", "service_type", "review_status", "reviewed_by", "reviewed_at", "rejection_reason"]) {
+    assert.ok(serviceColumns.includes(column), `expected migrated services column ${column}`);
+  }
+  db.close();
+});
+
 interface TestContext {
   db: AppDatabase;
   admin: AuthenticatedUser;
@@ -163,27 +182,242 @@ test("audit events capture actors and details and cannot be updated or deleted",
   );
 });
 
-test("service status changes are role-restricted and audited with before/after values", async () => {
+test("customers can submit requests for their vehicles and advisors must validate before status work", async () => {
   const app = createApp(context.db, secret);
-  const unauthorizedCreate = await request(app).post("/api/services")
-    .set("Authorization", `Bearer ${context.customerToken}`)
-    .send({ description: "Brake inspection" });
+  const now = new Date().toISOString();
+  const customerProfileId = "customer-record-service";
+  const customerVehicleId = "vehicle-record-service";
+  context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, address, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    customerProfileId,
+    "Customer User",
+    context.customer.email,
+    "9876543210",
+    null,
+    context.customer.id,
+    now,
+    now
+  );
+  context.db.prepare(`
+    INSERT INTO vehicles (
+      id, customer_id, registration_number, make, model, year, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    customerVehicleId,
+    customerProfileId,
+    "KA01AB1234",
+    "Toyota",
+    "Corolla",
+    2022,
+    now,
+    now
+  );
+  const unauthenticatedCreate = await request(app).post("/api/services")
+    .send({ vehicleId: customerVehicleId, serviceType: "Inspection", description: "Brake inspection" });
   const created = await request(app).post("/api/services")
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({
+      vehicleId: customerVehicleId,
+      serviceType: "Inspection",
+      description: "Brake inspection"
+    });
+  const review = await request(app).patch(`/api/services/${created.body.service.id}/review`)
     .set("Authorization", `Bearer ${context.adminToken}`)
-    .send({ description: "Brake inspection" });
+    .send({ decision: "validate" });
+  const prematureStatus = await request(app).patch(`/api/services/${created.body.service.id}/status`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ status: "in_progress" });
+
+  context.db.prepare("UPDATE services SET status = 'assigned' WHERE id = ?")
+    .run(created.body.service.id);
   const changed = await request(app).patch(`/api/services/${created.body.service.id}/status`)
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({ status: "in_progress" });
   const events = await request(app).get("/api/admin/audit-events")
     .set("Authorization", `Bearer ${context.adminToken}`);
 
-  assert.equal(unauthorizedCreate.status, 403);
+  assert.equal(unauthenticatedCreate.status, 401);
   assert.equal(created.status, 201);
+  assert.equal(created.body.service.status, "submitted");
+  assert.equal(created.body.service.customerId, customerProfileId);
+  assert.equal(review.status, 200);
+  assert.equal(review.body.service.status, "validated");
+  assert.equal(prematureStatus.status, 409);
   assert.equal(changed.body.service.status, "in_progress");
-  const change = events.body.events.find((event: { action: string }) => event.action === "service.status_changed");
+  const change = events.body.events.find((event: { action: string; targetId: string }) =>
+    event.action === "service.status_changed" && event.targetId === created.body.service.id
+  );
   assert.equal(change.actorUserId, context.admin.id);
-  assert.equal(change.details.from, "received");
+  assert.equal(change.details.from, "assigned");
   assert.equal(change.details.to, "in_progress");
+});
+
+test("incomplete requests stay submitted until corrected and pass advisor review", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerId = "customer-record-incomplete";
+  const vehicleId = "vehicle-record-incomplete";
+  context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, address, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(customerId, "Customer User", context.customer.email, "9876543210", null, context.customer.id, now, now);
+  context.db.prepare(`
+    INSERT INTO vehicles (
+      id, customer_id, registration_number, make, model, year, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(vehicleId, customerId, "KA02CD4567", "Honda", "City", 2021, now, now);
+
+  const submitted = await request(app).post("/api/services")
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({ vehicleId, description: "Inspect the brakes" });
+  const invalidReview = await request(app).patch(`/api/services/${submitted.body.service.id}/review`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ decision: "validate" });
+  const submissionList = await request(app).get("/api/services?status=submitted")
+    .set("Authorization", `Bearer ${context.adminToken}`);
+  const corrected = await request(app).patch(`/api/services/${submitted.body.service.id}`)
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({ serviceType: "Brake inspection" });
+  const review = await request(app).patch(`/api/services/${submitted.body.service.id}/review`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ decision: "validate" });
+
+  assert.equal(submitted.status, 201);
+  assert.equal(submitted.body.service.status, "submitted");
+  assert.equal(invalidReview.status, 400);
+  assert.equal(invalidReview.body.details[0].path, "serviceType");
+  assert.equal(submissionList.status, 200);
+  assert.equal(submissionList.body.total, 1);
+  assert.equal(submissionList.body.services[0].id, submitted.body.service.id);
+  assert.equal(corrected.status, 200);
+  assert.equal(corrected.body.service.status, "submitted");
+  assert.equal(review.status, 200);
+  assert.equal(review.body.service.status, "validated");
+});
+
+test("advisors can reject with a reason and customers can correct and resubmit", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerId = "customer-record-rejected";
+  const vehicleId = "vehicle-record-rejected";
+  context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, address, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(customerId, "Customer User", context.customer.email, "9876543210", null, context.customer.id, now, now);
+  context.db.prepare(`
+    INSERT INTO vehicles (
+      id, customer_id, registration_number, make, model, year, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(vehicleId, customerId, "KA03EF8910", "Suzuki", "Swift", 2020, now, now);
+  const created = await request(app).post("/api/services")
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({ vehicleId, serviceType: "Repair", description: "Engine noise" });
+  const noReason = await request(app).patch(`/api/services/${created.body.service.id}/review`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ decision: "reject" });
+  const rejected = await request(app).patch(`/api/services/${created.body.service.id}/review`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ decision: "reject", reason: "Please provide the current odometer reading" });
+  const resubmitted = await request(app).patch(`/api/services/${created.body.service.id}`)
+    .set("Authorization", `Bearer ${context.customerToken}`)
+    .send({ description: "Engine noise; odometer is 42,000 km" });
+  const validated = await request(app).patch(`/api/services/${created.body.service.id}/review`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ decision: "validate" });
+
+  assert.equal(created.status, 201);
+  assert.equal(noReason.status, 400);
+  assert.equal(rejected.status, 200);
+  assert.equal(rejected.body.service.status, "rejected");
+  assert.equal(rejected.body.service.rejectionReason, "Please provide the current odometer reading");
+  assert.equal(resubmitted.status, 200);
+  assert.equal(resubmitted.body.service.status, "submitted");
+  assert.equal(resubmitted.body.service.rejectionReason, null);
+  assert.equal(validated.status, 200);
+  assert.equal(validated.body.service.status, "validated");
+});
+
+test("administrators link customer accounts to existing customer records", async () => {
+  const app = createApp(context.db, secret);
+  const customer = await request(app).post("/api/customers")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ name: "New Customer", email: "new-customer@example.com", phone: "9876543211" });
+  const unlinked = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "new-customer-login@example.com",
+      displayName: "New Customer",
+      password,
+      role: "Customer"
+    });
+  const linked = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "new-customer-login@example.com",
+      displayName: "New Customer",
+      password,
+      role: "Customer",
+      customerId: customer.body.customer.id
+    });
+  const customerToken = createToken({
+    id: linked.body.user.id,
+    email: linked.body.user.email,
+    displayName: linked.body.user.displayName,
+    role: "Customer"
+  }, secret);
+  const vehicle = await request(app).post("/api/vehicles")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      customerId: customer.body.customer.id,
+      registrationNumber: "KA04GH2345",
+      make: "Hyundai",
+      model: "i20",
+      year: 2023
+    });
+  const ownRequest = await request(app).post("/api/services")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({ vehicleId: vehicle.body.vehicle.id, serviceType: "Oil change", description: "Routine service" });
+  const duplicateAccount = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "duplicate-customer-login@example.com",
+      displayName: "Duplicate Customer",
+      password,
+      role: "Customer",
+      customerId: customer.body.customer.id
+    });
+  const otherCustomer = await request(app).post("/api/customers")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ name: "Other Customer", email: "other-customer@example.com", phone: "9876543212" });
+  const otherVehicle = await request(app).post("/api/vehicles")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      customerId: otherCustomer.body.customer.id,
+      registrationNumber: "KA05IJ6789",
+      make: "Tata",
+      model: "Nexon",
+      year: 2024
+    });
+  const otherCustomerRequest = await request(app).post("/api/services")
+    .set("Authorization", `Bearer ${customerToken}`)
+    .send({ vehicleId: otherVehicle.body.vehicle.id, serviceType: "Inspection", description: "Not owned" });
+  const ownList = await request(app).get("/api/services")
+    .set("Authorization", `Bearer ${customerToken}`);
+
+  assert.equal(customer.status, 201);
+  assert.equal(unlinked.status, 400);
+  assert.equal(linked.status, 201);
+  assert.equal(linked.body.user.customerId, customer.body.customer.id);
+  assert.equal(ownRequest.status, 201);
+  assert.equal(ownRequest.body.service.customerId, customer.body.customer.id);
+  assert.equal(duplicateAccount.status, 409);
+  assert.equal(otherCustomer.status, 201);
+  assert.equal(otherVehicle.status, 201);
+  assert.equal(otherCustomerRequest.status, 403);
+  assert.equal(ownList.status, 200);
+  assert.equal(ownList.body.total, 1);
 });
 
 test("login returns a bearer token and rejects invalid passwords", async () => {
@@ -576,6 +810,37 @@ test("authorized users can list, view, and update customer vehicles", async () =
     .set(headers);
 
   assert.equal(missing.status, 404);
+});
+
+test("customers can list only vehicles linked to their own profile", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerRows = context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `);
+  const vehicleRows = context.db.prepare(`
+    INSERT INTO vehicles (
+      id, customer_id, registration_number, make, model, year, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+
+  customerRows.run("own-profile", "Customer User", context.customer.email, "9876543210", context.customer.id, now, now);
+  customerRows.run("other-profile", "Other Customer", "other@example.com", "9876543211", null, now, now);
+  vehicleRows.run("own-car", "own-profile", "KA10AA1001", "Honda", "City", 2021, now, now);
+  vehicleRows.run("other-car", "other-profile", "KA10AA1002", "Tata", "Nexon", 2022, now, now);
+
+  const ownVehicles = await request(app)
+    .get("/api/me/vehicles")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  const forbiddenStaffAccess = await request(app)
+    .get("/api/me/vehicles")
+    .set("Authorization", `Bearer ${context.adminToken}`);
+
+  assert.equal(ownVehicles.status, 200);
+  assert.equal(ownVehicles.body.total, 1);
+  assert.deepEqual(ownVehicles.body.vehicles.map((vehicle: { id: string }) => vehicle.id), ["own-car"]);
+  assert.equal(forbiddenStaffAccess.status, 403);
 });
 
 test("vehicle routes reject unauthorized access", async () => {
