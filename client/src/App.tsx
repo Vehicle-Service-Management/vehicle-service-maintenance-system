@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { DevSignIn } from './auth/DevSignIn'
+import { SignIn } from './auth/SignIn'
 import { useSession } from './auth/useSession'
 import { CustomerRequestList } from './features/services/CustomerRequestList'
 import { ServiceOverview } from './features/services/ServiceOverview'
@@ -84,7 +84,7 @@ export default function App({ signedOutContent }: { signedOutContent?: ReactNode
             </div>
           </section>
           <div className="auth-screen__form">
-            {signedOutContent ?? (import.meta.env.DEV ? <DevSignIn /> : <div className="auth-production-note"><h2>Sign in to continue</h2><p>Use your service-centre account to open the workspace.</p></div>)}
+            {signedOutContent ?? <SignIn />}
           </div>
         </main>
         <footer className="auth-screen__footer"><span>VSMMS · VEHICLE SERVICE &amp; MAINTENANCE</span><span>REQUEST INTAKE · ADVISOR REVIEW · WORKSHOP CARE</span></footer>

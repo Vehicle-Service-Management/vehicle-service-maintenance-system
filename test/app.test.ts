@@ -428,11 +428,45 @@ test("login returns a bearer token and rejects invalid passwords", async () => {
     .send({ email: context.admin.email, password: "not-the-password" });
   const oversizedPassword = await request(app).post("/api/auth/login")
     .send({ email: context.admin.email, password: "x".repeat(73) });
+  const storedPasswordHash = (context.db.prepare("SELECT password_hash AS passwordHash FROM users WHERE id = ?")
+    .get(context.admin.id) as { passwordHash: string }).passwordHash;
 
   assert.equal(valid.status, 200);
   assert.equal(valid.body.tokenType, "Bearer");
+  assert.equal(valid.body.user.role, "Administrator");
+  assert.notEqual(storedPasswordHash, password);
+  assert.match(storedPasswordHash, /^\$2[aby]\$/);
   assert.equal(invalid.status, 401);
   assert.equal(oversizedPassword.status, 400);
+});
+
+test("inactive accounts cannot sign in", async () => {
+  const app = createApp(context.db, secret);
+  context.db.prepare("UPDATE users SET is_active = 0 WHERE id = ?").run(context.customer.id);
+
+  const response = await request(app).post("/api/auth/login")
+    .send({ email: context.customer.email, password });
+
+  assert.equal(response.status, 401);
+  assert.equal(response.body.error, "Invalid email or password");
+});
+
+test("role changes apply immediately to existing access tokens", async () => {
+  const app = createApp(context.db, secret);
+  const forbiddenBeforePromotion = await request(app).get("/api/customers")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  const promoted = await request(app).patch(`/api/admin/users/${context.customer.id}`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ role: "Service Advisor" });
+  const allowedAfterPromotion = await request(app).get("/api/customers")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  const adminOnlyStillForbidden = await request(app).get("/api/admin/users")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+
+  assert.equal(forbiddenBeforePromotion.status, 403);
+  assert.equal(promoted.status, 200);
+  assert.equal(allowedAfterPromotion.status, 200);
+  assert.equal(adminOnlyStillForbidden.status, 403);
 });
 
 test("rejects invalid user roles and malformed user updates", async () => {

@@ -701,14 +701,14 @@ h1 {
 .signed-out-note { display: grid; max-width: 420px; gap: 8px; margin-top: 25px; padding: 17px; border-left: 3px solid #92aa83; color: #526558; background: #edf2e8; font-size: 12px; line-height: 1.55; }
 .signed-out-note strong { color: #294634; font-size: 13px; }
 .role-placeholder { width: min(800px, 100%); margin: 40px auto; }
-.dev-sign-in { display: grid; gap: 14px; max-width: 470px; padding: 17px; border: 1px solid #d4dfd2; border-radius: 7px; background: rgb(255 255 255 / 76%); }
-.dev-sign-in__eyebrow { margin-bottom: 7px; color: #7b8e78; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
-.dev-sign-in h2 { margin-bottom: 6px; color: #294634; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
-.dev-sign-in__form { display: grid; gap: 12px; }
-.dev-sign-in__form .field { gap: 5px; font-size: 11px; }
-.dev-sign-in__form .field input { min-height: 39px; padding: 8px 10px; font-size: 13px; }
-.dev-sign-in__form .notice { margin: 0; }
-.dev-sign-in > div > p:last-child { margin-bottom: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
+.sign-in { display: grid; gap: 14px; max-width: 470px; padding: 17px; border: 1px solid #d4dfd2; border-radius: 7px; background: rgb(255 255 255 / 76%); }
+.sign-in__eyebrow { margin-bottom: 7px; color: #7b8e78; font-size: 9px; font-weight: 800; letter-spacing: .12em; }
+.sign-in h2 { margin-bottom: 6px; color: #294634; font-family: Georgia, 'Times New Roman', serif; font-size: 20px; font-weight: 400; }
+.sign-in__form { display: grid; gap: 12px; }
+.sign-in__form .field { gap: 5px; font-size: 11px; }
+.sign-in__form .field input { min-height: 39px; padding: 8px 10px; font-size: 13px; }
+.sign-in__form .notice { margin: 0; }
+.sign-in > div > p:last-child { margin-bottom: 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
 
 /* Application shell and role workspaces */
 .auth-screen { min-height: 100vh; padding: 0 clamp(20px, 5vw, 76px); background: radial-gradient(ellipse at 18% 78%, rgb(205 224 188 / 32%), transparent 32rem), #f5f7f2; }
@@ -729,14 +729,11 @@ h1 {
 .auth-workflow b { display: grid; width: 25px; height: 25px; place-items: center; border: 1px solid #c8d5c4; border-radius: 50%; color: #496c4e; font-size: 8px; }
 .auth-workflow i { width: 24px; height: 1px; background: #d3ddd0; }
 .auth-screen__form { width: 100%; }
-.auth-screen__form .dev-sign-in { max-width: none; gap: 18px; padding: clamp(22px, 3vw, 34px); background: rgb(255 255 255 / 88%); box-shadow: 0 20px 70px rgb(34 58 40 / 7%); }
-.auth-screen__form .dev-sign-in h2 { font-size: 25px; }
-.auth-screen__form .dev-sign-in > div > p:last-child { font-size: 12px; }
-.auth-screen__form .dev-sign-in__form .field { gap: 7px; font-size: 12px; }
-.auth-screen__form .dev-sign-in__form .field input { min-height: 43px; font-size: 14px; }
-.auth-production-note { padding: 32px; border: 1px solid var(--line); border-radius: 9px; background: white; }
-.auth-production-note h2 { font-family: Georgia, 'Times New Roman', serif; font-size: 26px; font-weight: 400; }
-.auth-production-note p { margin-bottom: 0; color: var(--muted); font-size: 13px; }
+.auth-screen__form .sign-in { max-width: none; gap: 18px; padding: clamp(22px, 3vw, 34px); background: rgb(255 255 255 / 88%); box-shadow: 0 20px 70px rgb(34 58 40 / 7%); }
+.auth-screen__form .sign-in h2 { font-size: 25px; }
+.auth-screen__form .sign-in > div > p:last-child { font-size: 12px; }
+.auth-screen__form .sign-in__form .field { gap: 7px; font-size: 12px; }
+.auth-screen__form .sign-in__form .field input { min-height: 43px; font-size: 14px; }
 .auth-screen__footer, .workspace-footer { display: flex; min-height: 54px; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); color: #849084; font-size: 8px; font-weight: 700; letter-spacing: .12em; }
 
 .app-shell--workspace { display: grid; min-height: 100vh; grid-template-columns: 250px minmax(0, 1fr); background: #f5f7f4; }
@@ -874,7 +871,7 @@ h1 {
   .auth-intro > p:not(.eyebrow) { font-size: 13px; }
   .auth-workflow { gap: 7px; font-size: 8px; }
   .auth-workflow i { width: 13px; }
-  .auth-screen__form .dev-sign-in { padding: 20px; }
+  .auth-screen__form .sign-in { padding: 20px; }
   .metric-grid { grid-template-columns: 1fr; }
   .metric-card { min-height: auto; grid-template-columns: 1fr auto; align-items: center; gap: 3px 12px; }
   .metric-card > span { grid-column: 1; }

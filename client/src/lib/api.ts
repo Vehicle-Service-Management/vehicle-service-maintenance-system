@@ -50,6 +50,8 @@ export class ApiError extends Error {
   }
 }
 
+export const SESSION_EXPIRED_EVENT = 'vsmms:session-expired'
+
 interface ApiErrorPayload {
   error?: string
   details?: Array<{ path?: string[]; message?: string }>
@@ -71,6 +73,9 @@ export async function apiRequest<T>(
   const payload: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
+    if (response.status === 401 && typeof window !== 'undefined') {
+      window.dispatchEvent(new Event(SESSION_EXPIRED_EVENT))
+    }
     const errorPayload = payload as ApiErrorPayload | null
     const details = errorPayload?.details
       ?.map((detail) => detail.message)

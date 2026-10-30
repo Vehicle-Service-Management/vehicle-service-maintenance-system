@@ -79,7 +79,7 @@ npm run bootstrap-admin -- admin@example.com "System Administrator"
 Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
 ```
 
-Use the same email and password to sign in to the development client. The bootstrap command only works when the database has no users. It stores a bcrypt hash and an audit event, not the password itself. If you already bootstrapped this database, do not run it again.
+Use the same email and password to sign in to the client. The login page calls the API in both development and production builds; the password is sent only to the API for bcrypt verification and is never persisted by the browser. The bootstrap command only works when the database has no users. It stores a bcrypt hash and an audit event, not the password itself. If you already bootstrapped this database, do not run it again.
 
 ### 5. Start the backend and frontend
 
@@ -101,7 +101,7 @@ In terminal 2, from the repository root, start the Vite client:
 npm run dev:client
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`). The client proxies `/api` and `/health` to the API. In development mode, the sign-in panel calls the real API login endpoint; it does not bypass authentication or role checks.
+Open the local URL printed by Vite (normally `http://localhost:5173`). The client proxies `/api` and `/health` to the API. The sign-in page calls the real API login endpoint in both development and production builds; role-based API checks cannot be bypassed through the client.
 
 ## Create local records to try the request flow
 
@@ -188,7 +188,7 @@ Docker is not required for this development workflow. It can be added later for 
 
 ## Project layout and development notes
 
-The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, and a live overview. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
+The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer request submission/correction, an advisor review queue, a live overview, and an API-backed sign-in page. The shared in-memory bearer-token session and authentication behavior are documented in [`client/README.md`](client/README.md#login-and-role-based-access).
 
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 
