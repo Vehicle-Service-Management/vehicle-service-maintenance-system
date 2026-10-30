@@ -47,6 +47,12 @@ export function initializeDatabase(db: AppDatabase): void {
       reviewed_by TEXT REFERENCES users(id),
       reviewed_at TEXT,
       rejection_reason TEXT,
+      assigned_to TEXT REFERENCES users(id),
+      assigned_by TEXT REFERENCES users(id),
+      assigned_at TEXT,
+      work_performed TEXT NOT NULL DEFAULT '',
+      service_notes TEXT NOT NULL DEFAULT '',
+      completed_at TEXT,
       created_by TEXT NOT NULL REFERENCES users(id),
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
@@ -119,6 +125,12 @@ export function initializeDatabase(db: AppDatabase): void {
   ensureColumn(db, "services", "reviewed_by", "TEXT REFERENCES users(id)");
   ensureColumn(db, "services", "reviewed_at", "TEXT");
   ensureColumn(db, "services", "rejection_reason", "TEXT");
+  ensureColumn(db, "services", "assigned_to", "TEXT REFERENCES users(id)");
+  ensureColumn(db, "services", "assigned_by", "TEXT REFERENCES users(id)");
+  ensureColumn(db, "services", "assigned_at", "TEXT");
+  ensureColumn(db, "services", "work_performed", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "services", "service_notes", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "services", "completed_at", "TEXT");
   ensureColumn(db, "customers", "user_id", "TEXT REFERENCES users(id) ON DELETE SET NULL");
 
   db.exec(`
@@ -132,6 +144,8 @@ export function initializeDatabase(db: AppDatabase): void {
       ON services(vehicle_id, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_services_review_queue
       ON services(review_status, created_at, id);
+    CREATE INDEX IF NOT EXISTS idx_services_assigned_work
+      ON services(assigned_to, status, updated_at);
   `);
 }
 

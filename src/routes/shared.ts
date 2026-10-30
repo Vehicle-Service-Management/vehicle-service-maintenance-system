@@ -162,6 +162,16 @@ export interface ServiceRow {
   reviewedBy: string | null;
   reviewedAt: string | null;
   rejectionReason: string | null;
+  assignedTo: string | null;
+  assignedTechnicianName: string | null;
+  assignedTechnicianEmail: string | null;
+  assignedBy: string | null;
+  assigningStaffName: string | null;
+  assigningStaffEmail: string | null;
+  assignedAt: string | null;
+  workPerformed: string;
+  notes: string;
+  completedAt: string | null;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -179,22 +189,76 @@ export const serviceSelect = `
     s.reviewed_by AS reviewedBy,
     s.reviewed_at AS reviewedAt,
     s.rejection_reason AS rejectionReason,
+    s.assigned_to AS assignedTo,
+    technician.display_name AS assignedTechnicianName,
+    technician.email AS assignedTechnicianEmail,
+    s.assigned_by AS assignedBy,
+    assigner.display_name AS assigningStaffName,
+    assigner.email AS assigningStaffEmail,
+    s.assigned_at AS assignedAt,
+    s.work_performed AS workPerformed,
+    s.service_notes AS notes,
+    s.completed_at AS completedAt,
     s.created_by AS createdBy,
     s.created_at AS createdAt,
     s.updated_at AS updatedAt
   FROM services s
   LEFT JOIN vehicles v ON v.id = s.vehicle_id
+  LEFT JOIN users technician ON technician.id = s.assigned_to
+  LEFT JOIN users assigner ON assigner.id = s.assigned_by
 `;
 
-export function serviceView(row: ServiceRow): Omit<ServiceRow, "reviewStatus" | "status"> & { status: string } {
+type ServiceStaffFields = Pick<
+  ServiceRow,
+  | "assignedTo"
+  | "assignedTechnicianName"
+  | "assignedTechnicianEmail"
+  | "assignedBy"
+  | "assigningStaffName"
+  | "assigningStaffEmail"
+  | "assignedAt"
+  | "notes"
+>;
+
+export function serviceView(
+  row: ServiceRow,
+  includeStaffDetails = false
+): Omit<ServiceRow, "reviewStatus" | "status" | keyof ServiceStaffFields> &
+  { status: string } & Partial<ServiceStaffFields> {
   const status = row.reviewStatus === "submitted" || row.reviewStatus === "rejected"
     ? row.reviewStatus
     : row.status === "received"
       ? "validated"
       : row.status;
-  const { reviewStatus: _reviewStatus, ...service } = row;
+  const {
+    reviewStatus: _reviewStatus,
+    assignedTo: _assignedTo,
+    assignedTechnicianName: _assignedTechnicianName,
+    assignedTechnicianEmail: _assignedTechnicianEmail,
+    assignedBy: _assignedBy,
+    assigningStaffName: _assigningStaffName,
+    assigningStaffEmail: _assigningStaffEmail,
+    assignedAt: _assignedAt,
+    notes: _notes,
+    ...service
+  } = row;
 
-  return { ...service, status };
+  if (!includeStaffDetails) {
+    return { ...service, status };
+  }
+
+  return {
+    ...service,
+    status,
+    assignedTo: row.assignedTo,
+    assignedTechnicianName: row.assignedTechnicianName,
+    assignedTechnicianEmail: row.assignedTechnicianEmail,
+    assignedBy: row.assignedBy,
+    assigningStaffName: row.assigningStaffName,
+    assigningStaffEmail: row.assigningStaffEmail,
+    assignedAt: row.assignedAt,
+    notes: row.notes
+  };
 }
 
 export function parseInput<T>(
