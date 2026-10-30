@@ -20,28 +20,32 @@ export function authentication(db: AppDatabase, secret: string): RequestHandler 
       return;
     }
 
+    let claims: TokenClaims;
     try {
-      const claims = jwt.verify(header.slice(7), secret) as TokenClaims;
-      if (typeof claims.sub !== "string") {
-        res.status(401).json({ error: "Invalid or expired access token" });
-        return;
-      }
-      const row = db.prepare(`
-        SELECT id, email, display_name AS displayName, role
-        FROM users WHERE id = ? AND is_active = 1
-      `).get(claims.sub) as
-        | { id: string; email: string; displayName: string; role: Role }
-        | undefined;
-
-      if (!row) {
-        res.status(401).json({ error: "Authentication required" });
-        return;
-      }
-      req.user = row;
-      next();
+      claims = jwt.verify(header.slice(7), secret) as TokenClaims;
     } catch {
       res.status(401).json({ error: "Invalid or expired access token" });
+      return;
     }
+
+    if (typeof claims.sub !== "string") {
+      res.status(401).json({ error: "Invalid or expired access token" });
+      return;
+    }
+
+    const row = db.prepare(`
+      SELECT id, email, display_name AS displayName, role
+      FROM users WHERE id = ? AND is_active = 1
+    `).get(claims.sub) as
+      | { id: string; email: string; displayName: string; role: Role }
+      | undefined;
+
+    if (!row) {
+      res.status(401).json({ error: "Authentication required" });
+      return;
+    }
+    req.user = row;
+    next();
   };
 }
 

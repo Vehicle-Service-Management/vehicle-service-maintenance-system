@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ApiError, login } from '../lib/api'
 import { useSession } from './useSession'
 
-export function DevSignIn() {
+export function SignIn() {
   const { setSession } = useSession()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -25,24 +25,24 @@ export function DevSignIn() {
   }
 
   return (
-    <section className="dev-sign-in" aria-labelledby="dev-sign-in-title">
+    <section className="sign-in" aria-labelledby="sign-in-title">
       <div>
-        <p className="dev-sign-in__eyebrow">LOCAL DEVELOPMENT ONLY</p>
-        <h2 id="dev-sign-in-title">Preview the service workflows</h2>
-        <p>Sign in with an existing account. This calls the real API login and uses its bearer token; server role and ownership checks still apply.</p>
+        <p className="sign-in__eyebrow">SECURE ACCOUNT ACCESS</p>
+        <h2 id="sign-in-title">Sign in to your account</h2>
+        <p>Use your service-centre account credentials to access the workspace for your role.</p>
       </div>
-      <form className="dev-sign-in__form" onSubmit={(event) => void submit(event)}>
+      <form className="sign-in__form" onSubmit={(event) => void submit(event)}>
         <label className="field">
           <span>Account email</span>
-          <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
+          <input type="email" name="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" required />
         </label>
         <label className="field">
           <span>Password</span>
-          <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
+          <input type="password" name="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" required />
         </label>
-        {error && <p className="notice notice--error" role="alert">{error}</p>}
+        {error && <p className="notice notice--error" role="alert" aria-live="assertive">{error}</p>}
         <button className="button button--primary" type="submit" disabled={submitting}>
-          {submitting ? 'Signing in…' : 'Sign in for local preview'}
+          {submitting ? 'Signing in…' : 'Sign in'}
         </button>
       </form>
     </section>
