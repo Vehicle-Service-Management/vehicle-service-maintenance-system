@@ -7,30 +7,23 @@ A REST API for administering vehicle-service users, enforcing role-based access,
 - Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
 - npm
 
-## Get the team branch
+## Get the main branch
 
-The current working baseline is `feature/service-request-intake-review`. It contains the service-request intake and review workflow and is published on `origin`. It has not been merged into `main`.
+The service-request intake and review workflow is now merged into `main`. Use `main` as the shared baseline for a fresh checkout and new work.
 
 For a fresh checkout:
 
 ```powershell
-git clone --branch feature/service-request-intake-review https://github.com/Vehicle-Service-Management/vehicle-service-maintenance-system.git
+git clone --branch main https://github.com/Vehicle-Service-Management/vehicle-service-maintenance-system.git
 Set-Location vehicle-service-maintenance-system
 ```
 
-If the repository is already cloned and you have a local branch with this name, update it:
+To update an existing checkout:
 
 ```powershell
 git fetch origin
-git switch feature/service-request-intake-review
-git pull --ff-only origin feature/service-request-intake-review
-```
-
-If you have not created the local branch yet, fetch and create it as a tracking branch:
-
-```powershell
-git fetch origin
-git switch --create feature/service-request-intake-review --track origin/feature/service-request-intake-review
+git switch main
+git pull --ff-only origin main
 ```
 
 
@@ -156,13 +149,13 @@ To try customer submission, sign out of the website, sign in with the customer e
 
 The local database and `.env` are intentionally ignored by Git. Each teammate has a separate database and needs to create their own local records. Do not commit the database or real credentials.
 
-## Continue implementation on top of this branch
+## Continue implementation on top of main
 
-Create a separate feature branch from the shared baseline instead of committing directly to the shared branch. For example, to work on issue #11:
+Create a separate feature branch from `main` instead of committing directly to it. For example, to work on an issue:
 
 ```powershell
 git fetch origin
-git switch --create feature/login-integration origin/feature/service-request-intake-review
+git switch --create feature/your-feature origin/main
 ```
 
 Make and verify the change, then commit and publish your branch:
@@ -177,12 +170,12 @@ npm run build
 npm --prefix client run build
 git add path/to/your-changed-file
 git commit -m "feat: describe your change"
-git push --set-upstream origin feature/login-integration
+git push --set-upstream origin feature/your-feature
 ```
 
 Replace the example branch name and `path/to/your-changed-file` with the branch and file names for your task.
 
-Open a pull request with your feature branch as the source. Until the team chooses a different integration target, use `feature/service-request-intake-review` as the base so the work builds on this baseline. Coordinate with teammates before editing shared API contracts, role/session types, or the same client components.
+Open a pull request with your feature branch as the source and `main` as the base. Coordinate with teammates before editing shared API contracts, role/session types, or the same client components.
 
 Docker is not required for this development workflow. It can be added later for consistent full-project packaging and deployment.
 
