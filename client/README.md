@@ -31,9 +31,10 @@ Vite proxies `/api` and `/health` requests to the Express server on port `3000` 
 - Advisors and administrators can assign validated requests to active technicians and view active assignments.
 - Technicians can view only their own active assignments, record work and internal service notes, update progress, and complete work with a recorded timestamp.
 - The client calls the existing bearer-token API. Role checks in the interface only control navigation; the API remains responsible for authorization.
+- Visitors can register a Customer account from the signed-out page. Registration links an existing unlinked customer record when email and name match, or creates a new profile; staff roles remain administrator-created.
 
 The client does not yet include user-administration screens. An administrator must link a customer login to a customer record through the API.
 
 ## Sign-in and session
 
-The signed-out page calls `POST /api/auth/login` using the account email and password. `login(email, password)` returns `{ accessToken, user }`; the session provider keeps the bearer token in memory and does not persist credentials in browser storage. Authenticated requests use `apiRequest(path, accessToken, options)`. A `401` from an authenticated API request clears the session and returns the user to sign-in. The API remains responsible for role and ownership enforcement.
+The signed-out page lets customers register or calls `POST /api/auth/login` for existing accounts. Registration creates a customer profile linked to the new login and signs the customer in. `login(email, password)` and `registerCustomer(input)` return `{ accessToken, user }`; the session provider keeps the bearer token in memory and does not persist credentials in browser storage. Authenticated requests use `apiRequest(path, accessToken, options)`. A `401` from an authenticated API request clears the session and returns the user to sign-in. The API remains responsible for role and ownership enforcement.

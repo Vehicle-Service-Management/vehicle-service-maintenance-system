@@ -92,7 +92,7 @@ Open the local URL printed by Vite (normally `http://localhost:5173`). The clien
 
 A fresh SQLite database contains no customers, vehicles, or service requests. Sign in with an Administrator or Service Advisor account and use the **Customers** screen to register a customer, then the **Vehicles** screen to register a vehicle for that customer. The customer and vehicle screens support listing and updating records as well.
 
-To test the customer portal, create a Customer user linked to the customer record. User administration currently has no client screen, so create the linked account through the API. Run this in a third PowerShell terminal while the API is running; enter the administrator credentials created above:
+To test the customer portal, use **Create an account** on the sign-in page. If staff already created the customer record, register with the same name and email to link the login to that record; otherwise registration creates a new customer profile. An Administrator or Service Advisor must add vehicles to the profile before a service request can be submitted. User administration currently has no client screen. Use the admin API below when staff need to link a customer login manually:
 
 ```powershell
 $base = "http://localhost:3000"
@@ -168,10 +168,13 @@ The Express setup and middleware live in `src/app.ts`. API endpoints are grouped
 
 `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns a one-hour bearer token. For authenticated requests, send the returned token in the `Authorization` header with the `Bearer` scheme. Passwords are hashed with bcrypt, login requests are rate limited, and each request loads the user's current active state and role from the database so role changes and deactivation take effect immediately.
 
+Customers can create their own account from the sign-in page. Public registration creates a `Customer` login and customer profile together, then signs the customer in. If an unlinked customer record already has the same email and name, registration links the login to that record so existing vehicles and service history remain visible. Names are matched without regard to capitalization or repeated spaces. Public registration cannot create staff or administrator accounts. Records with a different name, or already linked to an account, require staff assistance.
+
 Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Customers can submit service requests for vehicles in their linked customer profile. Service advisors and administrators can submit requests on behalf of customers, review requests, and assign validated work to active technicians. Technicians can view and update execution details only for their own assignments.
 
 ## User administration
 
+- `POST /api/auth/register` - public customer registration with `name`, `email`, `phone`, optional `address`, and `password`. It creates a customer profile and linked Customer user, or links an unlinked existing record when its email and name match. It returns a bearer token.
 - `GET /api/admin/users?limit=50&offset=0` - list users (passwords and password hashes are never returned).
 - `POST /api/admin/users` - create a user with `email`, `displayName`, `password`, and `role`. Customer accounts also require `customerId` to link the login to an existing customer record.
 - `PATCH /api/admin/users/:id` - update `email`, `displayName`, `password`, `role`, `isActive`, and/or `customerId`.
