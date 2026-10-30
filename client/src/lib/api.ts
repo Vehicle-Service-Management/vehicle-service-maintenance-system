@@ -12,6 +12,21 @@ export interface AuthSession {
   user: AuthUser
 }
 
+export interface AdminUser extends AuthUser {
+  customerId: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CustomerRegistration {
+  name: string
+  email: string
+  phone: string
+  address?: string
+  password: string
+}
+
 export interface Vehicle {
   id: string
   customerId: string
@@ -119,6 +134,25 @@ export async function login(email: string, password: string): Promise<AuthSessio
 
   if (!response.ok || !payload?.accessToken || !payload.user) {
     throw new ApiError(payload?.error ?? `Login failed (${response.status})`, response.status)
+  }
+
+  return { accessToken: payload.accessToken, user: payload.user }
+}
+
+export async function registerCustomer(input: CustomerRegistration): Promise<AuthSession> {
+  const response = await fetch('/api/auth/register', {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  const payload = await response.json().catch(() => null) as {
+    accessToken?: string
+    user?: AuthUser
+    error?: string
+  } | null
+
+  if (!response.ok || !payload?.accessToken || !payload.user) {
+    throw new ApiError(payload?.error ?? `Registration failed (${response.status})`, response.status)
   }
 
   return { accessToken: payload.accessToken, user: payload.user }

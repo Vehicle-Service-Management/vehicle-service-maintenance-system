@@ -151,6 +151,54 @@ test("administrators can change roles and deactivate users; changes take effect 
   assert.equal(userList.status, 401);
 });
 
+test("administrators can edit staff accounts, reset passwords, and reactivate accounts", async () => {
+  const app = createApp(context.db, secret);
+  const created = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "editable-tech@example.com",
+      displayName: "Editable Technician",
+      password,
+      role: "Service Technician"
+    });
+  const userId = created.body.user.id as string;
+
+  const edited = await request(app).patch(`/api/admin/users/${userId}`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "updated-tech@example.com",
+      displayName: "Updated Technician",
+      role: "Service Advisor",
+      password: "updated password with enough length"
+    });
+  const oldPasswordLogin = await request(app).post("/api/auth/login")
+    .send({ email: "updated-tech@example.com", password });
+  const deactivate = await request(app).patch(`/api/admin/users/${userId}`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ isActive: false });
+  const inactiveLogin = await request(app).post("/api/auth/login")
+    .send({ email: "updated-tech@example.com", password: "updated password with enough length" });
+  const reactivate = await request(app).patch(`/api/admin/users/${userId}`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ isActive: true });
+  const activeLogin = await request(app).post("/api/auth/login")
+    .send({ email: "updated-tech@example.com", password: "updated password with enough length" });
+
+  assert.equal(created.status, 201);
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.user.email, "updated-tech@example.com");
+  assert.equal(edited.body.user.displayName, "Updated Technician");
+  assert.equal(edited.body.user.role, "Service Advisor");
+  assert.equal("password" in edited.body.user, false);
+  assert.equal(oldPasswordLogin.status, 401);
+  assert.equal(deactivate.status, 200);
+  assert.equal(inactiveLogin.status, 401);
+  assert.equal(reactivate.status, 200);
+  assert.equal(reactivate.body.user.isActive, true);
+  assert.equal(activeLogin.status, 200);
+  assert.equal(activeLogin.body.user.role, "Service Advisor");
+});
+
 test("prevents self-demotion and preserves one active administrator on account deactivation", async () => {
   const app = createApp(context.db, secret);
   const selfUpdate = await request(app).patch(`/api/admin/users/${context.admin.id}`)

@@ -92,7 +92,7 @@ Open the local URL printed by Vite (normally `http://localhost:5173`). The clien
 
 A fresh SQLite database contains no customers, vehicles, or service requests. Sign in with an Administrator or Service Advisor account and use the **Customers** screen to register a customer, then the **Vehicles** screen to register a vehicle for that customer. The customer and vehicle screens support listing and updating records as well.
 
-To test the customer portal, create a Customer user linked to the customer record. User administration currently has no client screen, so create the linked account through the API. Run this in a third PowerShell terminal while the API is running; enter the administrator credentials created above:
+To test the customer portal, use **Create an account** on the sign-in page. If staff already created the customer record, register with the same name and email to link the login to that record; otherwise registration creates a new customer profile. An Administrator or Service Advisor must add vehicles to the profile before a service request can be submitted. Administrators manage staff accounts from **User management**; customer login linking remains available through the admin API below when needed:
 
 ```powershell
 $base = "http://localhost:3000"
@@ -127,6 +127,18 @@ Write-Output "Created linked customer login $($customerAccount.user.email)"
 Sign out of the website and sign in with the linked customer email and password. Choose **New request**, select the registered vehicle, and submit a service type and description. Then sign in as an Administrator or Service Advisor and open **Review queue**. Validate the request or return it with feedback. Sign back in as the customer to see the result in **My requests** and correct and resubmit a returned request.
 
 The local database and `.env` are intentionally ignored by Git. Each teammate has a separate database and needs to create their own local records. Do not commit the database or real credentials.
+
+## Work added on this branch after the service workflow baseline
+
+The following changes were added after the branch's technician assignment and service execution baseline (`71e7f78`):
+
+- **Sign-in and technician workspace polish** (`abc6d19`): corrected technician header/layout spacing and made the login action visible without needing to hover. The login rate limit was also adjusted.
+- **Customer self-registration and profile linking** (`8e9b7ce`): added a customer registration form and API endpoint. Registration creates a Customer account and profile, or links an unlinked staff-created customer record when its email and normalized name match. Public registration cannot create staff accounts.
+- **Administrator staff management** (current uncommitted change): added the **User management** screen to create Service Advisor, Service Technician, and Administrator accounts; search and filter them; edit account details and roles; reset passwords; and deactivate or reactivate accounts. The screen is restricted to administrators, and the API enforces that restriction as well. Customer accounts remain separate from this staff directory.
+- **Requirements documentation**: updated the SRS and SAD to include customer registration/profile linking and the administrator staff-management screen.
+- **Regression coverage**: extended the API tests to verify staff account editing, password reset, deactivation, reactivation, and subsequent sign-in behavior.
+
+Checks run for the current change: `npm test` (25 passing), `npm run typecheck`, `npm run typecheck:client`, `npm --prefix client run build`, and `git diff --check`. The browser UI still needs a manual click-through check.
 
 ## Continue implementation from `main`
 
@@ -168,10 +180,15 @@ The Express setup and middleware live in `src/app.ts`. API endpoints are grouped
 
 `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns a one-hour bearer token. For authenticated requests, send the returned token in the `Authorization` header with the `Bearer` scheme. Passwords are hashed with bcrypt, login requests are rate limited, and each request loads the user's current active state and role from the database so role changes and deactivation take effect immediately.
 
+Customers can create their own account from the sign-in page. Public registration creates a `Customer` login and customer profile together, then signs the customer in. If an unlinked customer record already has the same email and name, registration links the login to that record so existing vehicles and service history remain visible. Names are matched without regard to capitalization or repeated spaces. Public registration cannot create staff or administrator accounts. Records with a different name, or already linked to an account, require staff assistance.
+
 Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Customers can submit service requests for vehicles in their linked customer profile. Service advisors and administrators can submit requests on behalf of customers, review requests, and assign validated work to active technicians. Technicians can view and update execution details only for their own assignments.
 
 ## User administration
 
+Administrators can use **User management** in the browser workspace to create Service Advisor, Service Technician, and Administrator accounts, edit account details and roles, reset passwords, and deactivate or reactivate accounts. Customers and non-Administrator staff cannot access this screen, and the API independently enforces Administrator access. Customer accounts are created through public customer registration.
+
+- `POST /api/auth/register` - public customer registration with `name`, `email`, `phone`, optional `address`, and `password`. It creates a customer profile and linked Customer user, or links an unlinked existing record when its email and name match. It returns a bearer token.
 - `GET /api/admin/users?limit=50&offset=0` - list users (passwords and password hashes are never returned).
 - `POST /api/admin/users` - create a user with `email`, `displayName`, `password`, and `role`. Customer accounts also require `customerId` to link the login to an existing customer record.
 - `PATCH /api/admin/users/:id` - update `email`, `displayName`, `password`, `role`, `isActive`, and/or `customerId`.
@@ -190,7 +207,7 @@ Customer and vehicle records can be managed by Administrators and Service Adviso
 - `GET /api/vehicles/:id` and `PATCH /api/vehicles/:id` - view or update a vehicle.
 - `GET /api/me/vehicles` - list vehicles linked to the authenticated Customer account.
 
-The web client provides customer and vehicle registration, list, and update screens for staff. To enable customer sign-in, an Administrator creates a Customer user through `POST /api/admin/users` and supplies the existing record's `customerId`.
+The web client provides customer and vehicle registration, list, and update screens for staff. Customers sign in through public registration; an Administrator can still create a linked Customer account through `POST /api/admin/users` and supply the existing record's `customerId` when manual setup is needed.
 
 ## Service request intake and review
 
