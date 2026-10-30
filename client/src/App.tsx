@@ -186,12 +186,12 @@ export default function App({
 
   if (isTechnician) {
     return (
-      <div className="app-shell app-shell--workspace">
+      <div className="app-shell app-shell--workspace app-shell--technician">
         <header className="workspace-topbar workspace-topbar--solo">
           <Brand />
 
           <div className="workspace-user">
-            <span>
+            <span className="workspace-user__identity">
               <strong>{session.user.displayName}</strong>
               <small>{role}</small>
             </span>
