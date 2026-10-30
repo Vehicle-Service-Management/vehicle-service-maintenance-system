@@ -18,6 +18,9 @@ This file tracks the supplied functional test cases one at a time. It records th
 | UT-03 | Passed | None |
 | IT-01 | Passed | Initial UI attempt hit a stale backend build; cleared after rebuilding and refreshing |
 | IT-02 | Passed | None |
+| IT-03 | Passed | Expired-token API check returned 401; client clears the session on 401 |
+| ST-01 | Partial | Service Advisor login and allowed API call passed; browser page check pending |
+| ST-02 | Passed | Invalid login, Customer authorization, and expired-session checks passed through the API |
 
 ## Case results
 
@@ -74,6 +77,36 @@ This file tracks the supplied functional test cases one at a time. It records th
 - **Result:** **Passed.**
 - **Defect:** None.
 - **Change proposed:** None; the endpoint denied access as expected.
+
+### IT-03 - Reject requests from an expired session
+
+- **Expected:** A protected request with an expired session is blocked and the user must authenticate again.
+- **Setup:** Signed in as the active `tech01@example.com` account, then generated an expired token for that account to simulate session expiry.
+- **Test action:** Requested `GET /api/services/assigned?limit=100` with the expired bearer token.
+- **Observed:** The API returned HTTP 401 with `Invalid or expired access token`; no protected service data was returned.
+- **Client handling:** The client calls its unauthorized handler on HTTP 401. `SessionProvider` connects that handler to `clearSession`, which returns the app to sign-in. This behavior was confirmed from the current client code; browser UI automation was unavailable.
+- **Browser confirmation:** The tester confirmed that refreshing after the session expired returns the app to sign-in.
+- **Result:** **Passed.**
+- **Defect:** None.
+- **Change proposed:** None.
+
+### ST-01 - Complete valid sign-in and role-based access flow
+
+- **Expected:** A valid service staff user signs in, is identified with the correct role, and can open a function allowed for that role.
+- **Setup:** Used the active Service Advisor account `staff01@example.com`.
+- **API result:** Login returned the `Service Advisor` role; `GET /api/customers?limit=10` returned HTTP 200 with one customer record.
+- **Result:** **Partial.** Confirm the role label and Customers page in the browser.
+- **Defect:** None confirmed.
+- **Change proposed:** None at this time.
+
+### ST-02 - Complete authentication and access-control security flow
+
+- **Expected:** Invalid login is rejected, a Customer cannot access an admin function, and an expired session cannot access protected data.
+- **Test actions:** Submitted invalid Customer credentials; signed in with the valid Customer account and requested `GET /api/admin/users?limit=10`; then requested `GET /api/me/vehicles` using an expired token.
+- **Observed:** Invalid login returned HTTP 401; the authenticated Customer request to the admin endpoint returned HTTP 403; the expired-token request returned HTTP 401 with `Invalid or expired access token`.
+- **Result:** **Passed** for the combined API security flow. Browser sign-in and expired-session behavior were confirmed in UT-02 and IT-03 respectively.
+- **Defect:** None.
+- **Change proposed:** None.
 
 ## Failure and change register
 
