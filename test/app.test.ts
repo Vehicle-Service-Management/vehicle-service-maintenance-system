@@ -23,7 +23,20 @@ test("database initialization migrates existing service and customer tables", ()
   const customerColumns = (db.prepare("PRAGMA table_info(customers)").all() as Array<{ name: string }>).map(({ name }) => name);
   const serviceColumns = (db.prepare("PRAGMA table_info(services)").all() as Array<{ name: string }>).map(({ name }) => name);
   assert.ok(customerColumns.includes("user_id"));
-  for (const column of ["vehicle_id", "service_type", "review_status", "reviewed_by", "reviewed_at", "rejection_reason"]) {
+  for (const column of [
+    "vehicle_id",
+    "service_type",
+    "review_status",
+    "reviewed_by",
+    "reviewed_at",
+    "rejection_reason",
+    "assigned_to",
+    "assigned_by",
+    "assigned_at",
+    "work_performed",
+    "service_notes",
+    "completed_at"
+  ]) {
     assert.ok(serviceColumns.includes(column), `expected migrated services column ${column}`);
   }
   db.close();
@@ -76,6 +89,16 @@ afterEach(() => context.db.close());
 function adminRequest(): request.Test {
   return request(createApp(context.db, secret)).get("/api/admin/users")
     .set("Authorization", `Bearer ${context.adminToken}`);
+}
+
+function insertValidatedService(id = "service-request-1"): string {
+  const now = new Date().toISOString();
+  context.db.prepare(`
+    INSERT INTO services (
+      id, description, status, review_status, created_by, created_at, updated_at
+    ) VALUES (?, ?, 'received', 'validated', ?, ?, ?)
+  `).run(id, "Approved vehicle service", context.admin.id, now, now);
+  return id;
 }
 
 test("admin-only routes reject unauthenticated and non-admin users", async () => {
@@ -423,7 +446,7 @@ test("administrators link customer accounts to existing customer records", async
 test("login returns a bearer token and rejects invalid passwords", async () => {
   const app = createApp(context.db, secret);
   const valid = await request(app).post("/api/auth/login")
-    .send({ email: context.admin.email, password });
+    .send({ email: context.admin.email, password     });
   const invalid = await request(app).post("/api/auth/login")
     .send({ email: context.admin.email, password: "not-the-password" });
   const oversizedPassword = await request(app).post("/api/auth/login")
@@ -435,6 +458,163 @@ test("login returns a bearer token and rejects invalid passwords", async () => {
   assert.equal(oversizedPassword.status, 400);
 });
 
+test("authorized staff can assign only validated requests to active technicians", async () => {
+  const app = createApp(context.db, secret);
+  const technician = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({
+      email: "workshop-tech@example.com",
+      displayName: "Workshop Technician",
+      password,
+      role: "Service Technician"
+    });
+  const unapproved = new Date().toISOString();
+  context.db.prepare(`
+    INSERT INTO services (
+      id, description, status, review_status, created_by, created_at, updated_at
+    ) VALUES ('submitted-service', 'Awaiting review', 'received', 'submitted', ?, ?, ?)
+  `).run(context.admin.id, unapproved, unapproved);
+  const waitingId = insertValidatedService();
+  const submittedAssignment = await request(app).post("/api/services/submitted-service/assign")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ technicianUserId: technician.body.user.id });
+
+  const customerQueue = await request(app).get("/api/services/awaiting-assignment")
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  const queue = await request(app).get("/api/services/awaiting-assignment")
+    .set("Authorization", `Bearer ${context.adminToken}`);
+  const technicianList = await request(app).get("/api/technicians")
+    .set("Authorization", `Bearer ${context.adminToken}`);
+  const badRoleAssignment = await request(app).post(`/api/services/${waitingId}/assign`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ technicianUserId: context.customer.id });
+  const assigned = await request(app).post(`/api/services/${waitingId}/assign`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ technicianUserId: technician.body.user.id });
+  const duplicate = await request(app).post(`/api/services/${waitingId}/assign`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ technicianUserId: technician.body.user.id });
+  const audits = context.db.prepare(`
+    SELECT action, actor_user_id AS actorUserId, details_json AS detailsJson
+    FROM audit_events WHERE target_id = ?
+  `).all(waitingId) as Array<{ action: string; actorUserId: string; detailsJson: string }>;
+
+  assert.equal(technician.status, 201);
+  assert.equal(customerQueue.status, 403);
+  assert.equal(queue.status, 200);
+  assert.equal(queue.body.total, 1);
+  assert.equal(queue.body.services[0].id, waitingId);
+  assert.equal(technicianList.status, 200);
+  assert.equal(technicianList.body.total, 1);
+  assert.equal(technicianList.body.technicians[0].activeAssignments, 0);
+  assert.equal(submittedAssignment.status, 409);
+  assert.equal(badRoleAssignment.status, 400);
+  assert.equal(assigned.status, 200);
+  assert.equal(assigned.body.service.status, "assigned");
+  assert.equal(assigned.body.service.assignedTo, technician.body.user.id);
+  assert.equal(assigned.body.service.assignedBy, context.admin.id);
+  assert.equal(assigned.body.service.assignedTechnicianName, "Workshop Technician");
+  assert.equal(Number.isNaN(Date.parse(assigned.body.service.assignedAt)), false);
+  assert.equal(duplicate.status, 409);
+  assert.equal(audits.length, 1);
+  assert.equal(audits[0].action, "service.assigned");
+  assert.equal(audits[0].actorUserId, context.admin.id);
+  assert.equal(JSON.parse(audits[0].detailsJson).assignedTo, technician.body.user.id);
+});
+
+test("technicians see and update only their own approved service assignments", async () => {
+  const app = createApp(context.db, secret);
+  const firstTech = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ email: "first-tech@example.com", displayName: "First Tech", password, role: "Service Technician" });
+  const secondTech = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ email: "second-tech@example.com", displayName: "Second Tech", password, role: "Service Technician" });
+  const firstId = insertValidatedService("first-work");
+  const secondId = insertValidatedService("second-work");
+  for (const [serviceId, userId] of [
+    [firstId, firstTech.body.user.id],
+    [secondId, secondTech.body.user.id]
+  ]) {
+    await request(app).post(`/api/services/${serviceId}/assign`)
+      .set("Authorization", `Bearer ${context.adminToken}`)
+      .send({ technicianUserId: userId });
+  }
+  const token = createToken({
+    id: firstTech.body.user.id,
+    email: firstTech.body.user.email,
+    displayName: firstTech.body.user.displayName,
+    role: "Service Technician"
+  }, secret);
+
+  const ownWork = await request(app).get("/api/services/assigned")
+    .set("Authorization", `Bearer ${token}`);
+  const otherWork = await request(app).get(`/api/services/${secondId}`)
+    .set("Authorization", `Bearer ${token}`);
+  const unauthorizedUpdate = await request(app).patch(`/api/services/${secondId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ workPerformed: "Wrong technician" });
+  const started = await request(app).patch(`/api/services/${firstId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ workPerformed: "Replaced the oil filter.", notes: "Used OEM parts.", status: "in_progress" });
+
+  assert.equal(ownWork.status, 200);
+  assert.equal(ownWork.body.total, 1);
+  assert.equal(ownWork.body.services[0].id, firstId);
+  assert.equal(otherWork.status, 404);
+  assert.equal(unauthorizedUpdate.status, 403);
+  assert.equal(started.status, 200);
+  assert.equal(started.body.service.workPerformed, "Replaced the oil filter.");
+  assert.equal(started.body.service.notes, "Used OEM parts.");
+  assert.equal(started.body.service.status, "in_progress");
+});
+
+test("completion requires recorded work, stores completion time, audits activity, and locks the service", async () => {
+  const app = createApp(context.db, secret);
+  const technician = await request(app).post("/api/admin/users")
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ email: "completion-tech@example.com", displayName: "Completion Tech", password, role: "Service Technician" });
+  const serviceId = insertValidatedService("completion-service");
+  await request(app).post(`/api/services/${serviceId}/assign`)
+    .set("Authorization", `Bearer ${context.adminToken}`)
+    .send({ technicianUserId: technician.body.user.id });
+  const token = createToken({
+    id: technician.body.user.id,
+    email: technician.body.user.email,
+    displayName: technician.body.user.displayName,
+    role: "Service Technician"
+  }, secret);
+
+  const startedWithoutWork = await request(app).patch(`/api/services/${serviceId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ status: "in_progress" });
+  const missingWork = await request(app).patch(`/api/services/${serviceId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ status: "completed" });
+  await request(app).patch(`/api/services/${serviceId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ workPerformed: "Repaired the cooling system." });
+  const completed = await request(app).patch(`/api/services/${serviceId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ notes: "Road tested successfully.", status: "completed" });
+  const editCompleted = await request(app).patch(`/api/services/${serviceId}/execution`)
+    .set("Authorization", `Bearer ${token}`)
+    .send({ notes: "Attempted post-completion edit." });
+  const audit = context.db.prepare(`
+    SELECT action, details_json AS detailsJson
+    FROM audit_events WHERE target_id = ? AND action = 'service.completed'
+  `).get(serviceId) as { action: string; detailsJson: string } | undefined;
+
+  assert.equal(missingWork.status, 400);
+  assert.equal(startedWithoutWork.status, 200);
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.service.status, "completed");
+  assert.equal(completed.body.service.workPerformed, "Repaired the cooling system.");
+  assert.equal(Number.isNaN(Date.parse(completed.body.service.completedAt)), false);
+  assert.equal(editCompleted.status, 409);
+  assert.equal(audit?.action, "service.completed");
+  assert.equal(JSON.parse(audit!.detailsJson).completedAt, completed.body.service.completedAt);
+});
 test("rejects invalid user roles and malformed user updates", async () => {
   const app = createApp(context.db, secret);
   const invalidRole = await request(app).post("/api/admin/users")

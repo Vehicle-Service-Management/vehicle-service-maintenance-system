@@ -160,7 +160,7 @@ Docker is not required for this development workflow. It can be added later for 
 
 ## Project layout and development notes
 
-The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer and vehicle registration/list/update screens, customer request submission/correction, an advisor review queue, and an overview. The full production login screen, technician assignment, and service execution screens remain separate implementation work. Integration instructions for issue #11 and the shared in-memory bearer-token session are in [`client/README.md`](client/README.md#login-integration-contract-for-issue-11).
+The React + TypeScript + Vite client is in `client/`. It includes role-aware service-centre workspaces, customer and vehicle registration/list/update screens, customer request submission/correction, an advisor review queue, technician assignment, technician work execution, and an overview. The production sign-in and shared in-memory bearer-token session are documented in [`client/README.md`](client/README.md#sign-in-and-session).
 
 The Express setup and middleware live in `src/app.ts`. API endpoints are grouped into auth, admin, customer, vehicle, and service routers under `src/routes/`, then mounted under `/api`. Service-request creation, correction, and review handlers are in `src/controllers/service-request.controller.ts`; shared validation and database row types live in `src/routes/shared.ts`. `npm run dev` uses `tsx watch` to restart the TypeScript server when source files change, so Nodemon is not needed.
 
@@ -168,7 +168,7 @@ The Express setup and middleware live in `src/app.ts`. API endpoints are grouped
 
 `POST /api/auth/login` accepts `{ "email": "...", "password": "..." }` and returns a one-hour bearer token. For authenticated requests, send the returned token in the `Authorization` header with the `Bearer` scheme. Passwords are hashed with bcrypt, login requests are rate limited, and each request loads the user's current active state and role from the database so role changes and deactivation take effect immediately.
 
-Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Customers can submit service requests for vehicles in their linked customer profile. Service advisors and administrators can submit requests on behalf of customers and review requests. Operational status updates are limited to administrators, service advisors, and technicians, and require a request to be validated first.
+Roles are `Customer`, `Service Advisor`, `Service Technician`, and `Administrator`. Only administrators can manage users or view audit events. Customers can submit service requests for vehicles in their linked customer profile. Service advisors and administrators can submit requests on behalf of customers, review requests, and assign validated work to active technicians. Technicians can view and update execution details only for their own assignments.
 
 ## User administration
 
@@ -200,13 +200,17 @@ The web client provides customer and vehicle registration, list, and update scre
 - `POST /api/services` - submit a request with `vehicleId`, and optionally `serviceType` and `description`. Customer submissions must use a vehicle owned by their linked profile. New requests start as `submitted` so staff can validate missing or incorrect details.
 - `PATCH /api/services/:id` - correct a submitted or rejected request. The owning customer or staff can edit it; a rejected request returns to `submitted` for review.
 - `PATCH /api/services/:id/review` - advisors and administrators validate a complete request with `{ "decision": "validate" }` or reject it with `{ "decision": "reject", "reason": "..." }`.
-- `PATCH /api/services/:id/status` - after validation, staff can update the operational status to `assigned`, `in_progress`, `awaiting_parts`, `completed`, or `cancelled`, following the permitted status transitions.
+- `GET /api/services/awaiting-assignment` and `GET /api/technicians` - advisors and administrators can view validated requests awaiting assignment and active technicians.
+- `POST /api/services/:id/assign` - advisors and administrators assign a validated request using `{ "technicianUserId": "..." }`.
+- `GET /api/services/assigned` - staff can view active assignments; technicians only receive their own assigned work.
+- `PATCH /api/services/:id/execution` - the assigned technician or authorized staff can record `workPerformed`, internal `notes`, and execution status (`in_progress`, `awaiting_parts`, or `completed`). Completion requires work details and stores a completion timestamp.
+- `PATCH /api/services/:id/status` - authorized staff can cancel or otherwise make permitted operational status changes; technicians cannot cancel work.
 
-The public request status is `submitted`, `validated`, or `rejected` during intake and review. After validation, it reflects the operational workflow status. Rejection reasons and review attribution are retained, and resubmission clears the prior rejection details.
+The public request status is `submitted`, `validated`, or `rejected` during intake and review. After validation, it reflects the operational workflow status. Rejection reasons and review attribution are retained, and resubmission clears the prior rejection details. Assignment and execution details are stored with the service record; internal service notes and technician contact details are not included in customer responses.
 
 ## Audit logging
 
-User creation/changes, successful logins, customer and vehicle creation/updates, service creation, service review decisions, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
+User creation/changes, successful logins, customer and vehicle creation/updates, service creation, service review decisions, assignment, execution updates, completion, and service-status changes are recorded in the same database transaction as their corresponding change. Audit details exclude passwords. SQLite triggers reject updates and deletes to audit events, and the API exposes no write operation for them. Configure the database file and its backups with appropriate operator-level access controls; database-file administrators remain outside application authorization.
 
 ## Development checks
 

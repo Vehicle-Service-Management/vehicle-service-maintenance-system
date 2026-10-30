@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
-import { DevSignIn } from './auth/DevSignIn'
+import { SignIn } from './auth/SignIn'
 import { useSession } from './auth/useSession'
 import { CustomerManagement } from './features/customers/CustomerManagement'
 import { VehicleManagement } from './features/vehicles/VehicleManagement'
@@ -7,6 +7,7 @@ import { CustomerRequestList } from './features/services/CustomerRequestList'
 import { ServiceOverview } from './features/services/ServiceOverview'
 import { ServiceRequestForm } from './features/services/ServiceRequestForm'
 import { ServiceReviewQueue } from './features/services/ServiceReviewQueue'
+import { AssignmentQueue, TechnicianWorkQueue } from './features/services/ServiceOperations'
 import { checkApiHealth } from './lib/api'
 import './App.css'
 
@@ -17,6 +18,7 @@ type WorkspaceView =
   | 'create'
   | 'requests'
   | 'review'
+  | 'assignments'
   | 'customers'
   | 'vehicles'
 
@@ -25,6 +27,7 @@ const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
   create: { eyebrow: 'SERVICE INTAKE', title: 'New service request' },
   requests: { eyebrow: 'CUSTOMER PORTAL', title: 'My service requests' },
   review: { eyebrow: 'SERVICE OPERATIONS', title: 'Request review' },
+  assignments: { eyebrow: 'SERVICE OPERATIONS', title: 'Technician assignment' },
   customers: { eyebrow: 'CUSTOMER MANAGEMENT', title: 'Customers' },
   vehicles: { eyebrow: 'VEHICLE MANAGEMENT', title: 'Vehicles' },
 }
@@ -169,17 +172,7 @@ export default function App({
           </section>
 
           <div className="auth-screen__form">
-            {signedOutContent ??
-              (import.meta.env.DEV ? (
-                <DevSignIn />
-              ) : (
-                <div className="auth-production-note">
-                  <h2>Sign in to continue</h2>
-                  <p>
-                    Use your service-centre account to open the workspace.
-                  </p>
-                </div>
-              ))}
+            {signedOutContent ?? <SignIn />}
           </div>
         </main>
 
@@ -217,18 +210,7 @@ export default function App({
         </header>
 
         <main className="workspace-main">
-          <div className="panel role-placeholder">
-            <p className="eyebrow">
-              <span /> TECHNICIAN WORKSPACE
-            </p>
-
-            <h2>Assigned service work</h2>
-
-            <p>
-              The technician assignment and service execution screens belong
-              to the related sprint tasks and will connect here.
-            </p>
-          </div>
+          <TechnicianWorkQueue session={session} />
         </main>
       </div>
     )
@@ -303,6 +285,15 @@ export default function App({
               >
                 <span className="nav-icon">▤</span>
                 Review queue
+              </button>
+
+              <button
+                className={view === 'assignments' ? 'is-active' : ''}
+                type="button"
+                onClick={() => navigate('assignments')}
+              >
+                <span className="nav-icon">⚒</span>
+                Technician assignment
               </button>
 
               <button
@@ -432,6 +423,10 @@ export default function App({
 
           {isAdvisor && view === 'review' && (
             <ServiceReviewQueue session={session} />
+          )}
+
+          {isAdvisor && view === 'assignments' && (
+            <AssignmentQueue session={session} />
           )}
 
           {isAdvisor && view === 'create' && (

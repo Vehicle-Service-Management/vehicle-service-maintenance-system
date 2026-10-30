@@ -39,6 +39,16 @@ export interface ServiceRequest {
   description: string
   status: string
   rejectionReason: string | null
+  workPerformed?: string
+  notes?: string
+  completedAt?: string | null
+  assignedTo?: string | null
+  assignedTechnicianName?: string | null
+  assignedTechnicianEmail?: string | null
+  assignedBy?: string | null
+  assigningStaffName?: string | null
+  assigningStaffEmail?: string | null
+  assignedAt?: string | null
   createdAt: string
   updatedAt: string
 }
@@ -51,6 +61,12 @@ export class ApiError extends Error {
     this.status = status
     this.name = 'ApiError'
   }
+}
+
+let unauthorizedHandler: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler
 }
 
 interface ApiErrorPayload {
@@ -74,6 +90,9 @@ export async function apiRequest<T>(
   const payload: unknown = await response.json().catch(() => null)
 
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.()
+    }
     const errorPayload = payload as ApiErrorPayload | null
     const details = errorPayload?.details
       ?.map((detail) => detail.message)
