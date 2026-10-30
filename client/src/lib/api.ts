@@ -12,6 +12,13 @@ export interface AuthSession {
   user: AuthUser
 }
 
+export interface AdminUser extends AuthUser {
+  customerId: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface CustomerRegistration {
   name: string
   email: string

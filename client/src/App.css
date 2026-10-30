@@ -1032,6 +1032,86 @@ h1 {
   overflow-wrap: anywhere;
 }
 
+.user-management__heading-actions,
+.user-table__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-management__count {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.user-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(170px, .7fr) minmax(170px, .7fr);
+  gap: 14px;
+  margin: 20px 0;
+}
+
+.user-filters label {
+  display: grid;
+  gap: 7px;
+  color: #34483b;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.user-filters input,
+.user-filters select {
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid #ced9ce;
+  border-radius: 5px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+}
+
+.user-filters input:focus,
+.user-filters select:focus {
+  border-color: #658c6d;
+  outline: 3px solid rgb(101 140 109 / 18%);
+}
+
+.user-account-form {
+  margin-top: 18px;
+}
+
+.user-table__self {
+  display: inline-block;
+  margin-left: 7px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.user-table__deactivate {
+  color: #a4493d;
+}
+
+.user-status--inactive {
+  color: #7c5148;
+  background: #f5e8e4;
+}
+
+.user-table__edit-row > td {
+  padding: 18px;
+  background: #f7f9f5;
+}
+
+.user-table__edit-row .management-form {
+  margin-top: 0;
+}
+
+.user-table .text-button:disabled {
+  cursor: not-allowed;
+  opacity: .6;
+}
+
 @media (max-width: 700px) {
   .management-panel {
     padding: 16px;
@@ -1044,5 +1124,14 @@ h1 {
   .management-table th,
   .management-table td {
     padding: 10px 8px;
+  }
+
+  .user-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .user-management__heading-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { SignIn } from './auth/SignIn'
 import { useSession } from './auth/useSession'
 import { CustomerManagement } from './features/customers/CustomerManagement'
+import { UserManagement } from './features/users/UserManagement'
 import { VehicleManagement } from './features/vehicles/VehicleManagement'
 import { CustomerRequestList } from './features/services/CustomerRequestList'
 import { ServiceOverview } from './features/services/ServiceOverview'
@@ -21,6 +22,7 @@ type WorkspaceView =
   | 'assignments'
   | 'customers'
   | 'vehicles'
+  | 'users'
 
 const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
   overview: { eyebrow: 'WORKSPACE', title: 'Overview' },
@@ -30,6 +32,7 @@ const pageTitles: Record<WorkspaceView, { eyebrow: string; title: string }> = {
   assignments: { eyebrow: 'SERVICE OPERATIONS', title: 'Technician assignment' },
   customers: { eyebrow: 'CUSTOMER MANAGEMENT', title: 'Customers' },
   vehicles: { eyebrow: 'VEHICLE MANAGEMENT', title: 'Vehicles' },
+  users: { eyebrow: 'ACCESS MANAGEMENT', title: 'User management' },
 }
 
 async function getConnectionState(): Promise<
@@ -96,6 +99,7 @@ export default function App({
   const isCustomer = role === 'Customer'
   const isAdvisor =
     role === 'Service Advisor' || role === 'Administrator'
+  const isAdministrator = role === 'Administrator'
   const isTechnician = role === 'Service Technician'
 
   const view = selectedView ?? 'overview'
@@ -326,6 +330,17 @@ export default function App({
                 <span className="nav-icon">▣</span>
                 Vehicles
               </button>
+
+              {isAdministrator && (
+                <button
+                  className={view === 'users' ? 'is-active' : ''}
+                  type="button"
+                  onClick={() => navigate('users')}
+                >
+                  <span className="nav-icon">♙</span>
+                  User management
+                </button>
+              )}
             </>
           )}
         </nav>
@@ -442,6 +457,10 @@ export default function App({
 
           {isAdvisor && view === 'vehicles' && (
             <VehicleManagement session={session} />
+          )}
+
+          {isAdministrator && view === 'users' && (
+            <UserManagement session={session} />
           )}
         </main>
 

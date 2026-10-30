@@ -33,7 +33,7 @@ Vite proxies `/api` and `/health` requests to the Express server on port `3000` 
 - The client calls the existing bearer-token API. Role checks in the interface only control navigation; the API remains responsible for authorization.
 - Visitors can register a Customer account from the signed-out page. Registration links an existing unlinked customer record when email and name match, or creates a new profile; staff roles remain administrator-created.
 
-The client does not yet include user-administration screens. An administrator must link a customer login to a customer record through the API.
+Administrators can open **User management** from the service-centre navigation to create and manage Service Advisor, Service Technician, and Administrator accounts. Customer accounts are created through public customer registration; manual linking to an existing customer record remains available through the admin API. Customer and non-Administrator staff roles do not receive access to user management, and the API enforces the same restriction.
 
 ## Sign-in and session
 
