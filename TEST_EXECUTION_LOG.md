@@ -16,8 +16,8 @@
 | UT-02 | Partial | API returned HTTP 401; tester completed browser check, but did not report the displayed outcome |
 | UT-03 | Passed | API returned HTTP 400; tester confirmed blank form submission was blocked with validation feedback |
 | IT-01 | Passed | API access passed; screenshot shows Technician Workspace and assigned General Service request |
-| IT-02 | Partial | Customer login succeeded; admin users endpoint denied with HTTP 403; browser check pending |
-| IT-03 | Not run | — |
+| IT-02 | Passed | Customer could not access User management in browser; admin API returned HTTP 403 |
+| IT-03 | Partial | Expired-token API request returned HTTP 401; browser session clearing still needs confirmation |
 | ST-01 | Not run | — |
 | ST-02 | Not run | — |
 | UT-04 | Not run | — |
@@ -98,8 +98,20 @@
 - **Setup:** Linked `it01-customer@example.com` to the IT-01 customer record and signed in as Customer.
 - **Test action:** Requested `GET /api/admin/users?limit=10` with the Customer bearer token.
 - **Observed:** HTTP 403; no user list was returned.
-- **Result:** **Partial.** API denial passed. Browser visibility/direct-access behavior remains to be checked by the tester.
+- **Observed in browser:** The tester confirmed User management was hidden for the Customer account.
+- **Result:** **Passed.** User management was hidden in the browser and the admin API returned HTTP 403 with no user list.
 - **Defect:** None confirmed.
+
+### IT-03 — Reject requests from an expired session
+
+- **Expected:** A protected request with an expired session is blocked and the user must authenticate again.
+- **Setup:** Signed in as `tech01@example.com`; generated an expired bearer token for the active technician account.
+- **Test action:** Requested `GET /api/services/assigned?limit=100` with the expired bearer token.
+- **Observed:** HTTP 401 with `Invalid or expired access token`; no protected work data was returned.
+- **Client handling:** The current API client invokes the unauthorized handler on HTTP 401, and `SessionContext` connects it to `clearSession`, which returns the app to sign-in.
+- **Result:** **Partial.** API rejection passed and client handling is present in code; browser session transition was not observed in this run.
+- **Defect:** None confirmed.
+
 ## Automated baseline checks
 
 - `npm.cmd test`: **25 passed, 0 failed**.
@@ -110,4 +122,4 @@
 
 ## Failure and change register
 
-No application failure has been confirmed. UT-02 browser outcome is awaiting confirmation. UT-01, UT-03, and IT-01 were confirmed by the tester.
+No application failure has been confirmed. UT-02 browser outcome is awaiting confirmation. UT-01, UT-03, IT-01, and IT-02 were confirmed by the tester.
