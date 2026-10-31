@@ -1,113 +1,113 @@
 # Vehicle Service Management Test Execution Log
 
-This file tracks the supplied functional test cases one at a time. It records the build under test, observed results, defects, and proposed changes. A case is marked failed only when its expected result is not met; incomplete checks are marked partial.
-
-## Test run details
+## Run 1
 
 - Test plan: `Test_Plan_and_test_cases (2).docx` (40 functional cases)
-- Repository baseline: UT-01 and UT-02 ran on `main` at `3b4c51f`; UT-03 and later cases use updated `main` code at `bc19591`.
-- Environment: local Windows development setup; API at `http://localhost:3000`, client at `http://127.0.0.1:5173`
-- Database: fresh local SQLite database
+- Build under test: `main` at `162a252`
+- Date: 2026-10-31 (Asia/Calcutta)
+- Environment: Windows local checkout; API at `http://localhost:3000`; isolated SQLite database `data/test-run-20261031.sqlite`
+- Note: Browser automation was unavailable in this session. UI observations are recorded from tester confirmations where provided; otherwise UI steps remain pending.
 
 ## Execution summary
 
-| Case | Result | Defect |
+| Case | Result | Defect / note |
 | --- | --- | --- |
-| UT-01 | Passed | None |
-| UT-02 | Passed | None |
-| UT-03 | Passed | None |
-| IT-01 | Passed | Initial UI attempt hit a stale backend build; cleared after rebuilding and refreshing |
-| IT-02 | Passed | None |
-| IT-03 | Passed | Expired-token API check returned 401; client clears the session on 401 |
-| ST-01 | Partial | Service Advisor login and allowed API call passed; browser page check pending |
-| ST-02 | Passed | Invalid login, Customer authorization, and expired-session checks passed through the API |
+| UT-01 | Passed | API login passed; tester confirmed browser login worked |
+| UT-02 | Partial | API returned HTTP 401; tester completed browser check, but did not report the displayed outcome |
+| UT-03 | Passed | API returned HTTP 400; tester confirmed blank form submission was blocked with validation feedback |
+| IT-01 | Passed | API access passed; screenshot shows Technician Workspace and assigned General Service request |
+| IT-02 | Partial | Customer login succeeded; admin users endpoint denied with HTTP 403; browser check pending |
+| IT-03 | Not run | — |
+| ST-01 | Not run | — |
+| ST-02 | Not run | — |
+| UT-04 | Not run | — |
+| UT-05 | Not run | — |
+| UT-06 | Not run | — |
+| IT-04 | Not run | — |
+| IT-05 | Not run | — |
+| IT-06 | Not run | — |
+| ST-03 | Not run | — |
+| ST-04 | Not run | — |
+| UT-07 | Not run | — |
+| UT-08 | Not run | — |
+| UT-09 | Not run | — |
+| IT-07 | Not run | — |
+| IT-08 | Not run | — |
+| IT-09 | Not run | — |
+| ST-05 | Not run | — |
+| ST-06 | Not run | — |
+| UT-10 | Not run | — |
+| UT-11 | Not run | — |
+| UT-12 | Not run | — |
+| IT-10 | Not run | — |
+| IT-11 | Not run | — |
+| IT-12 | Not run | — |
+| ST-07 | Not run | — |
+| ST-08 | Not run | — |
+| UT-13 | Not run | — |
+| UT-14 | Not run | — |
+| UT-15 | Not run | — |
+| IT-13 | Not run | — |
+| IT-14 | Not run | — |
+| IT-15 | Not run | — |
+| ST-09 | Not run | — |
+| ST-10 | Not run | — |
 
-## Case results
+## Case details
 
 ### UT-01 — Valid user authentication
 
-- **Expected:** A registered active user can sign in with valid credentials.
-- **Setup:** Created `staff01@example.com` as an active Service Advisor test account, matching the test plan's `staff01` sample.
-- **Observed:** The local client returned HTTP 200. A valid login request to `POST /api/auth/login` returned an access token and the `Service Advisor` role. The tester confirmed that the same credentials work in the browser.
-- **Result:** **Passed.**
+- **Expected:** A registered user can authenticate with valid credentials.
+- **Setup:** In the isolated test database, created `staff01@example.com` as an active Service Advisor. The plan's sample `staff01@123` is not an email address, while the current login API requires an email; used a valid email-format test account instead.
+- **Observed:** `POST /api/auth/login` returned HTTP 200, a bearer token, and role `Service Advisor`.
+- **Observed in browser:** The tester confirmed the sign-in worked.
+- **Result:** **Passed.** API authentication returned HTTP 200 with the Service Advisor role and a bearer token; browser sign-in was confirmed by the tester.
 - **Defect:** None confirmed.
-- **Change proposed:** None at this time. Complete the browser login step when interactive UI access is available; investigate only if it fails.
-- **Tester confirmation:** The tester reported that the valid credentials work in the browser.
 
 ### UT-02 — Reject invalid credentials
 
-- **Expected:** An invalid username/password combination is rejected with an appropriate failure message.
-- **Setup:** Used the active `staff01@example.com` account with an incorrect password (`Wrong@123`).
-- **Observed:** `POST /api/auth/login` returned HTTP 401 and did not return an access token.
-- **Observed in browser:** The website displayed an invalid-password message and did not sign in the user, as reported by the tester.
-- **Result:** **Passed.**
+- **Expected:** Invalid credentials are rejected with a failure message.
+- **Test action:** Submitted `staff01@example.com` with an incorrect password to `POST /api/auth/login`.
+- **Observed:** HTTP 401; the API response indicates `Invalid email or password`.
+- **Browser step:** The tester confirmed completing the browser check; the displayed outcome has not been reported.
+- **Result:** **Partial.** API rejection passed. Awaiting the browser result before marking the case passed or failed.
 - **Defect:** None confirmed.
-- **Change proposed:** None at this time. If the browser shows a success state or fails to show a clear login error, record that as a defect for investigation.
-- **Tester confirmation:** The invalid-password message appeared in the browser.
 
-### UT-03 - Prevent submission with blank credentials
+### UT-03 — Prevent submission with blank credentials
 
-- **Expected:** The login form blocks submission when required credentials are blank and shows a validation warning.
-- **Setup:** Loaded the login page on the current `main` build (`bc19591`) and left both credential fields empty.
-- **Observed in browser:** The tester reported that the browser showed a required-field warning when **Sign in** was clicked; sign-in was blocked.
-- **Result:** **Passed.**
-- **Defect:** None.
-- **Change proposed:** None.
-- **Tester confirmation:** The browser displayed the required-field warning.
+- **Expected:** The login form blocks blank credentials and shows validation feedback.
+- **Test action:** Submitted blank email and password to `POST /api/auth/login`.
+- **Observed:** The API returned HTTP 400.
+- **Observed in browser:** The tester confirmed the blank submission was blocked and validation feedback appeared.
+- **Result:** **Passed.** The API returned HTTP 400, and the tester confirmed the browser form blocked submission with validation feedback.
+- **Defect:** None confirmed.
 
-### IT-01 - Apply role-based access for a Service Technician
+
+### IT-01 — Apply role-based access for a Service Technician
 
 - **Expected:** A Service Technician signs in, sees the technician workspace, and can access assigned work.
-- **Setup:** Created the active `tech01@example.com` Service Technician test account.
-- **Observed in browser:** The Technician Workspace and Assigned service work page appeared, but the page showed `Insufficient permissions`.
-- **Investigation:** The browser was calling a backend built from the earlier `3b4c51f` source, which did not match the updated frontend. Rebuilt and restarted the API from current `main` code at `bc19591`.
-- **API retest:** Login identified the account as `Service Technician`; `GET /api/services/assigned?limit=100` returned HTTP 200 with zero assigned requests.
-- **Browser retest:** After the backend rebuild, the tester refreshed the workspace and confirmed the permission error cleared; the empty assigned-work state appeared.
-- **Result:** **Passed.**
-- **Defect:** None. The first error came from a stale local backend build.
-- **Change proposed:** No application code change. Keep the API build aligned with current `main` before testing.
-- **Retest:** Passed after rebuilding the backend and refreshing the browser.
-
-### IT-02 - Deny Customer access to administrator functions
-
-- **Expected:** A Customer account is denied access to administrator-only functions and receives no protected user data.
-- **Setup:** Created an active Customer account linked to the local test customer `customer-it02@example.com`.
-- **Test action:** Signed in as that Customer and requested `GET /api/admin/users?limit=10`.
-- **Observed:** The API returned HTTP 403 and no user list.
-- **Result:** **Passed.**
-- **Defect:** None.
-- **Change proposed:** None; the endpoint denied access as expected.
-
-### IT-03 - Reject requests from an expired session
-
-- **Expected:** A protected request with an expired session is blocked and the user must authenticate again.
-- **Setup:** Signed in as the active `tech01@example.com` account, then generated an expired token for that account to simulate session expiry.
-- **Test action:** Requested `GET /api/services/assigned?limit=100` with the expired bearer token.
-- **Observed:** The API returned HTTP 401 with `Invalid or expired access token`; no protected service data was returned.
-- **Client handling:** The client calls its unauthorized handler on HTTP 401. `SessionProvider` connects that handler to `clearSession`, which returns the app to sign-in. This behavior was confirmed from the current client code; browser UI automation was unavailable.
-- **Browser confirmation:** The tester confirmed that refreshing after the session expired returns the app to sign-in.
-- **Result:** **Passed.**
-- **Defect:** None.
-- **Change proposed:** None.
-
-### ST-01 - Complete valid sign-in and role-based access flow
-
-- **Expected:** A valid service staff user signs in, is identified with the correct role, and can open a function allowed for that role.
-- **Setup:** Used the active Service Advisor account `staff01@example.com`.
-- **API result:** Login returned the `Service Advisor` role; `GET /api/customers?limit=10` returned HTTP 200 with one customer record.
-- **Result:** **Partial.** Confirm the role label and Customers page in the browser.
+- **Setup:** Created `tech01@example.com` as an active Service Technician. Created customer `IT01 Test Customer`, vehicle `KA01IT001`, and a validated service request assigned to this technician in the isolated database.
+- **Observed:** Technician login returned the `Service Technician` role. `GET /api/services/assigned?limit=100` returned HTTP 200 with one assigned request (`KA01IT001`, status `assigned`).
+- **Observed in browser:** Tester screenshot shows the Technician Workspace, Assigned service work page, and the assigned General Service request with status `Assigned`.
+- **Result:** **Passed.** The technician role and assigned work are accessible in the API and browser.
 - **Defect:** None confirmed.
-- **Change proposed:** None at this time.
 
-### ST-02 - Complete authentication and access-control security flow
+### IT-02 — Deny Customer access to administrator functions
 
-- **Expected:** Invalid login is rejected, a Customer cannot access an admin function, and an expired session cannot access protected data.
-- **Test actions:** Submitted invalid Customer credentials; signed in with the valid Customer account and requested `GET /api/admin/users?limit=10`; then requested `GET /api/me/vehicles` using an expired token.
-- **Observed:** Invalid login returned HTTP 401; the authenticated Customer request to the admin endpoint returned HTTP 403; the expired-token request returned HTTP 401 with `Invalid or expired access token`.
-- **Result:** **Passed** for the combined API security flow. Browser sign-in and expired-session behavior were confirmed in UT-02 and IT-03 respectively.
-- **Defect:** None.
-- **Change proposed:** None.
+- **Expected:** A Customer is denied access to administrator-only functions and receives no protected user data.
+- **Setup:** Linked `it01-customer@example.com` to the IT-01 customer record and signed in as Customer.
+- **Test action:** Requested `GET /api/admin/users?limit=10` with the Customer bearer token.
+- **Observed:** HTTP 403; no user list was returned.
+- **Result:** **Partial.** API denial passed. Browser visibility/direct-access behavior remains to be checked by the tester.
+- **Defect:** None confirmed.
+## Automated baseline checks
+
+- `npm.cmd test`: **25 passed, 0 failed**.
+- `npm.cmd run typecheck`: **passed**.
+- `npm.cmd run typecheck:client`: **passed**.
+- `npm.cmd --prefix client run build`: **passed**.
+- These checks establish the current code baseline; they do not replace execution of the 40 manual cases above.
 
 ## Failure and change register
 
-No functional failures have been confirmed so far. Add an entry here only when a case fails, with the failing steps, evidence, likely cause, and proposed code or configuration change.
+No application failure has been confirmed. UT-02 browser outcome is awaiting confirmation. UT-01, UT-03, and IT-01 were confirmed by the tester.
