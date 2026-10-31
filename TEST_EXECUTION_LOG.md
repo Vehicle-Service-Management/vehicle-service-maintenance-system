@@ -18,7 +18,7 @@
 | IT-01 | Passed | API access passed; screenshot shows Technician Workspace and assigned General Service request |
 | IT-02 | Passed | Customer could not access User management in browser; admin API returned HTTP 403 |
 | IT-03 | Partial | Expired-token API request returned HTTP 401; browser session clearing still needs confirmation |
-| ST-01 | Not run | — |
+| ST-01 | Partial | Service Advisor login returned the correct role and Customers API returned HTTP 200; browser check pending |
 | ST-02 | Not run | — |
 | UT-04 | Not run | — |
 | UT-05 | Not run | — |
@@ -112,6 +112,14 @@
 - **Result:** **Partial.** API rejection passed and client handling is present in code; browser session transition was not observed in this run.
 - **Defect:** None confirmed.
 
+
+### ST-01 - Complete valid sign-in and role-based access flow
+
+- **Expected:** A valid service staff user signs in, is identified with the correct role, and can open a function allowed for that role.
+- **Setup:** Used the active Service Advisor account `staff01@example.com`.
+- **Observed:** Login returned role `Service Advisor`; `GET /api/customers?limit=10` returned HTTP 200 with the permitted customer list.
+- **Result:** **Partial.** API authentication and role-authorized access passed. Browser role display and Customers page confirmation remain pending.
+- **Defect:** None confirmed.
 ## Automated baseline checks
 
 - `npm.cmd test`: **25 passed, 0 failed**.
@@ -122,4 +130,4 @@
 
 ## Failure and change register
 
-No application failure has been confirmed. UT-02 browser outcome is awaiting confirmation. UT-01, UT-03, IT-01, and IT-02 were confirmed by the tester.
+No application failure has been confirmed. UT-02 browser outcome and IT-03 browser session expiry remain unverified. ST-01 browser confirmation is pending.
