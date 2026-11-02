@@ -130,7 +130,7 @@
 
 ## Failure and change register
 
-No application failure has been confirmed. UT-02 browser outcome and IT-03 browser session expiry remain unverified. ST-01 browser confirmation is pending.
+No application failure has been confirmed. UT-02 browser outcome and IT-03 browser session expiry remain unverified. ST-01 passed in the browser.
 
 ## Run 2 - ST-01 retest
 
@@ -138,4 +138,12 @@ No application failure has been confirmed. UT-02 browser outcome and IT-03 brows
 - Environment: API at `http://localhost:3000`; client at `http://localhost:5173`; isolated database `data/test-run-20261031.sqlite`
 - Code delta since Run 1: latest commit adds CI workflow only; application source files are unchanged.
 - **API observation:** `staff01@example.com` authenticated as `Service Advisor`; `GET /api/customers?limit=10` returned HTTP 200 with 1 customer.
-- **Result:** **Partial.** API sign-in and authorized access passed; browser role and Customers page check pending.
+- **Browser observation:** The tester confirmed the Service Advisor role and reported ST-01 passed, including authorized Customers access.
+- **Result:** **Passed.** The Service Advisor role was identified, and the tester confirmed the complete sign-in and authorized-access flow.
+
+## Run 2 - ST-02 retest
+
+- Build under test: `main` at `5311f11` (application source unchanged by this commit)
+- Test actions: invalid Customer password; valid Customer request to the admin users API; expired Customer token request to `/api/me/vehicles`.
+- **Observed:** Invalid login returned HTTP 401; Customer access to `/api/admin/users` returned HTTP 403; expired token access to `/api/me/vehicles` returned HTTP 401.
+- **Result:** **Partial.** The combined API security flow passed. Browser display of the invalid-login message and expired-session return to sign-in remain unverified.
