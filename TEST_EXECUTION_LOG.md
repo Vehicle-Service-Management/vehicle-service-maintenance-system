@@ -8,18 +8,20 @@
 - Environment: Windows local checkout; API at `http://localhost:3000`; isolated SQLite database `data/test-run-20261031.sqlite`
 - Note: Browser automation was unavailable in this session. UI observations are recorded from tester confirmations where provided; otherwise UI steps remain pending.
 
-## Execution summary
+## Latest result across runs
+
+This table reflects the latest recorded result for each case. Per-run notes below retain the build and evidence for each execution.
 
 | Case | Result | Defect / note |
 | --- | --- | --- |
 | UT-01 | Passed | API login passed; tester confirmed browser login worked |
-| UT-02 | Partial | API returned HTTP 401; tester completed browser check, but did not report the displayed outcome |
+| UT-02 | Passed | Invalid credentials were rejected in the ST-02 browser flow; API returned HTTP 401 |
 | UT-03 | Passed | API returned HTTP 400; tester confirmed blank form submission was blocked with validation feedback |
 | IT-01 | Passed | API access passed; screenshot shows Technician Workspace and assigned General Service request |
 | IT-02 | Passed | Customer could not access User management in browser; admin API returned HTTP 403 |
-| IT-03 | Partial | Expired-token API request returned HTTP 401; browser session clearing still needs confirmation |
-| ST-01 | Partial | Service Advisor login returned the correct role and Customers API returned HTTP 200; browser check pending |
-| ST-02 | Not run | — |
+| IT-03 | Passed | Expired session was rejected by the API and confirmed in the ST-02 browser flow |
+| ST-01 | Passed | Service Advisor role and authorized Customers access confirmed in the browser |
+| ST-02 | Passed | Combined invalid-login, Customer authorization, and expired-session flow confirmed |
 | UT-04 | Not run | — |
 | UT-05 | Not run | — |
 | UT-06 | Not run | — |
@@ -69,8 +71,9 @@
 - **Expected:** Invalid credentials are rejected with a failure message.
 - **Test action:** Submitted `staff01@example.com` with an incorrect password to `POST /api/auth/login`.
 - **Observed:** HTTP 401; the API response indicates `Invalid email or password`.
-- **Browser step:** The tester confirmed completing the browser check; the displayed outcome has not been reported.
-- **Result:** **Partial.** API rejection passed. Awaiting the browser result before marking the case passed or failed.
+- **Run 1 browser step:** The tester reported completing the check but did not provide the displayed outcome.
+- **Run 2 confirmation:** The ST-02 browser flow confirmed invalid Customer credentials are rejected.
+- **Result:** **Passed.** Invalid credentials were rejected by the API and the browser flow.
 - **Defect:** None confirmed.
 
 ### UT-03 — Prevent submission with blank credentials
@@ -109,7 +112,8 @@
 - **Test action:** Requested `GET /api/services/assigned?limit=100` with the expired bearer token.
 - **Observed:** HTTP 401 with `Invalid or expired access token`; no protected work data was returned.
 - **Client handling:** The current API client invokes the unauthorized handler on HTTP 401, and `SessionContext` connects it to `clearSession`, which returns the app to sign-in.
-- **Result:** **Partial.** API rejection passed and client handling is present in code; browser session transition was not observed in this run.
+- **Run 2 confirmation:** The tester passed the ST-02 combined browser flow, which includes invalid-session protection and return to authentication.
+- **Result:** **Passed.** The expired token returned HTTP 401, and the tester confirmed the combined expired-session flow.
 - **Defect:** None confirmed.
 
 
