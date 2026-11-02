@@ -23,7 +23,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | ST-01 | Passed | Service Advisor role and authorized Customers access confirmed in the browser |
 | ST-02 | Passed | Combined invalid-login, Customer authorization, and expired-session flow confirmed |
 | UT-04 | Passed | Customer was created and displayed correctly in the browser |
-| UT-05 | Not run | — |
+| UT-05 | Passed | Blank customer name triggered required-field validation; submission stayed blocked |
 | UT-06 | Not run | — |
 | IT-04 | Not run | — |
 | IT-05 | Not run | — |
@@ -165,5 +165,13 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Setup:** Signed in as the Service Advisor account `staff01@example.com`.
 - **Test data:** Rahul Kumar; phone `9876543210`; email `rahul@example.com`; address Bengaluru.
 - **Observed in browser:** The tester confirmed the customer was added and displayed correctly.
+- **Result:** **Passed.**
+- **Defect:** None confirmed.
+
+### UT-05 - Validate required customer information
+
+- **Expected:** The form prevents saving when a required customer field is blank and displays validation feedback.
+- **Test action:** Left Customer name blank and submitted the customer form.
+- **Observed in browser:** Required-field feedback appeared for Customer name, and the form remained open without a creation confirmation.
 - **Result:** **Passed.**
 - **Defect:** None confirmed.
