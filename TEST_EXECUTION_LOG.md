@@ -131,3 +131,11 @@
 ## Failure and change register
 
 No application failure has been confirmed. UT-02 browser outcome and IT-03 browser session expiry remain unverified. ST-01 browser confirmation is pending.
+
+## Run 2 - ST-01 retest
+
+- Build under test: `main` at `5311f11` (`feat: add CI workflow for testing and building API and client`)
+- Environment: API at `http://localhost:3000`; client at `http://localhost:5173`; isolated database `data/test-run-20261031.sqlite`
+- Code delta since Run 1: latest commit adds CI workflow only; application source files are unchanged.
+- **API observation:** `staff01@example.com` authenticated as `Service Advisor`; `GET /api/customers?limit=10` returned HTTP 200 with 1 customer.
+- **Result:** **Partial.** API sign-in and authorized access passed; browser role and Customers page check pending.
