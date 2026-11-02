@@ -130,9 +130,15 @@
 
 ## Failure and change register
 
-No application failure has been confirmed. UT-02 browser outcome and IT-03 browser session expiry remain unverified. ST-01 passed in the browser.
+No application failure has been confirmed. The individual UT-02 browser outcome and IT-03 technician session-expiry UI check remain unreported; ST-01 and ST-02 passed in Run 2.
 
-## Run 2 - ST-01 retest
+## Run 2 - Retest on latest main
+### Run 2 case summary
+
+| Case | Result | Note |
+| --- | --- | --- |
+| ST-01 | Passed | Browser role and authorized Customers access confirmed |
+| ST-02 | Passed | Tester confirmed the combined authentication and access-control flow |
 
 - Build under test: `main` at `5311f11` (`feat: add CI workflow for testing and building API and client`)
 - Environment: API at `http://localhost:3000`; client at `http://localhost:5173`; isolated database `data/test-run-20261031.sqlite`
@@ -146,4 +152,5 @@ No application failure has been confirmed. UT-02 browser outcome and IT-03 brows
 - Build under test: `main` at `5311f11` (application source unchanged by this commit)
 - Test actions: invalid Customer password; valid Customer request to the admin users API; expired Customer token request to `/api/me/vehicles`.
 - **Observed:** Invalid login returned HTTP 401; Customer access to `/api/admin/users` returned HTTP 403; expired token access to `/api/me/vehicles` returned HTTP 401.
-- **Result:** **Partial.** The combined API security flow passed. Browser display of the invalid-login message and expired-session return to sign-in remain unverified.
+- **Browser observation:** The tester reported completing the combined flow successfully.
+- **Result:** **Passed.** Invalid login was rejected, Customer access to admin functions was denied, and the expired session could not access protected data.
