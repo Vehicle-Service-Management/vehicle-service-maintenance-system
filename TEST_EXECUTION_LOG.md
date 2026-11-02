@@ -134,7 +134,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 
 ## Failure and change register
 
-No application failure has been confirmed. The individual UT-02 browser outcome and IT-03 technician session-expiry UI check remain unreported; ST-01 and ST-02 passed in Run 2.
+No application failure has been confirmed. UT-02 and IT-03 passed using the combined ST-02 evidence; separate retests for those individual cases were not recorded. Other planned cases remain pending.
 
 ## Run 2 - Retest on latest main
 ### Run 2 case summary
