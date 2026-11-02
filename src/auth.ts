@@ -9,7 +9,7 @@ interface TokenClaims extends jwt.JwtPayload {
 }
 
 export function createToken(user: AuthenticatedUser, secret: string): string {
-  return jwt.sign({ sub: user.id }, secret, { expiresIn: "1h" });
+  return jwt.sign({ sub: user.id }, secret, { expiresIn: "15m" });
 }
 
 export function authentication(db: AppDatabase, secret: string): RequestHandler {

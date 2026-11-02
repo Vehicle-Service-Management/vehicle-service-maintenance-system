@@ -123,7 +123,7 @@ export function createAuthRouter(context: RouteContext) {
       res.status(201).json({
         accessToken: createToken(user, jwtSecret),
         tokenType: "Bearer",
-        expiresIn: 3600,
+        expiresIn: 900,
         user
       });
     }

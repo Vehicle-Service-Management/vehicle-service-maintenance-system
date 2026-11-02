@@ -126,7 +126,17 @@ Write-Output "Created linked customer login $($customerAccount.user.email)"
 
 Sign out of the website and sign in with the linked customer email and password. Choose **New request**, select the registered vehicle, and submit a service type and description. Then sign in as an Administrator or Service Advisor and open **Review queue**. Validate the request or return it with feedback. Sign back in as the customer to see the result in **My requests** and correct and resubmit a returned request.
 
-The local database and `.env` are intentionally ignored by Git. Each teammate has a separate database and needs to create their own local records. Do not commit the database or real credentials.
+### On every teammate's laptop: create a local administrator
+
+Fetching or cloning the project downloads the application code, **not** your account or SQLite database. Each laptop creates its own `data/app.sqlite` file, so a teammate must create a local administrator before signing in. After installing dependencies and creating `.env` as described above, open PowerShell in the project root and run:
+
+```powershell
+$env:BOOTSTRAP_ADMIN_PASSWORD = "Choose-A-Strong-Local-Password"
+npm run bootstrap-admin -- admin@example.com "Local Administrator"
+Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
+```
+
+Replace the sample email and password with local demo credentials, then sign in with them in the app. The bootstrap command works only when that laptop's database has no users. If an administrator already exists in its database, use that account instead; do not run the bootstrap command again. The database and `.env` are intentionally ignored by Git, so accounts and records are not shared between laptops. Never commit real credentials or the database file.
 
 ## Work added on this branch after the service workflow baseline
 

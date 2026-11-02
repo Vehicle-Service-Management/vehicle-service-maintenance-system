@@ -84,6 +84,21 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler
 }
 
+// API access tokens carry their expiry in the JWT `exp` claim. A client
+// session can safely survive a page refresh until this time.
+export function getTokenExpiryTime(accessToken: string): number | null {
+  try {
+    const payloadSegment = accessToken.split('.')[1]
+    if (!payloadSegment) return null
+
+    const base64 = payloadSegment.replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64)) as { exp?: unknown }
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null
+  } catch {
+    return null
+  }
+}
+
 interface ApiErrorPayload {
   error?: string
   details?: Array<{ path?: string[]; message?: string }>
