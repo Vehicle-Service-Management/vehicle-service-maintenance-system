@@ -22,7 +22,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | IT-03 | Passed | Expired session was rejected by the API and confirmed in the ST-02 browser flow |
 | ST-01 | Passed | Service Advisor role and authorized Customers access confirmed in the browser |
 | ST-02 | Passed | Combined invalid-login, Customer authorization, and expired-session flow confirmed |
-| UT-04 | Not run | — |
+| UT-04 | Passed | Customer was created and displayed correctly in the browser |
 | UT-05 | Not run | — |
 | UT-06 | Not run | — |
 | IT-04 | Not run | — |
@@ -158,3 +158,12 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Invalid login returned HTTP 401; Customer access to `/api/admin/users` returned HTTP 403; expired token access to `/api/me/vehicles` returned HTTP 401.
 - **Browser observation:** The tester reported completing the combined flow successfully.
 - **Result:** **Passed.** Invalid login was rejected, Customer access to admin functions was denied, and the expired session could not access protected data.
+
+### UT-04 - Register a customer
+
+- **Expected:** Authorized service staff can register a customer with valid information.
+- **Setup:** Signed in as the Service Advisor account `staff01@example.com`.
+- **Test data:** Rahul Kumar; phone `9876543210`; email `rahul@example.com`; address Bengaluru.
+- **Observed in browser:** The tester confirmed the customer was added and displayed correctly.
+- **Result:** **Passed.**
+- **Defect:** None confirmed.
