@@ -36,9 +36,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | IT-07 | Passed | Retrieved service request retained the correct vehicle and customer association |
 | IT-08 | Passed | Assigned request appeared in the selected technician's assigned-work list |
 | IT-09 | Passed | Brake inspection activity stayed on its original request; unrelated request remained unchanged |
-| ST-05 | Not run | — |
-| ST-06 | Not run | — |
-| UT-10 | Not run | — |
+| ST-05 | Passed | Request review, assignment, technician activity, and service record update completed successfully |
+| ST-06 | Passed | Technician saw own request; other technician's request returned 404 and update was denied (403) |
+| UT-10 | Failed | Maintenance-record submission returned 404; no maintenance-record endpoint is implemented |
 | UT-11 | Not run | — |
 | UT-12 | Not run | — |
 | IT-10 | Not run | — |
@@ -284,3 +284,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The updated request returned HTTP 200 with the activity details. The unrelated request retained empty activity fields.
 - **Result:** **Passed.** The activity remained on the correct service request. Browser UI behavior was not tested.
 - **Defect:** None observed in this API flow.
+
+### ST-05 - Complete the service workflow
+
+- **Expected:** Service request creation, review, assignment, technician activity, and service record update are maintained end to end.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, and Service Technician accounts and a registered vehicle.
+- **Test actions:** Created a General Service request, validated it, assigned it to the technician, recorded work performed and notes, then reopened the service record.
+- **Observed:** The technician saw the assigned work. The execution update returned HTTP 200; the reopened record retained the vehicle, assignment, activity details, and `in_progress` status.
+- **Result:** **Passed.** The service workflow and its data were maintained end to end. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### ST-06 - Restrict technicians to their assigned work
+
+- **Expected:** A technician can view assigned work but cannot access a request assigned to another technician.
+- **Setup:** Used an isolated in-memory SQLite database with two technicians, two service requests, and a Service Advisor.
+- **Test actions:** Assigned one request to each technician, viewed Technician A's assigned-work list, and attempted to view and update Technician B's request as Technician A.
+- **Observed:** Technician A's list contained only its own request. Its own request returned HTTP 200; Technician B's request returned HTTP 404, and an update attempt returned HTTP 403.
+- **Result:** **Passed.** A technician could access only assigned work.
+- **Defect:** None observed in this API flow. Browser UI behavior was not tested.
+
+### UT-10 - Record maintenance details for a vehicle
+
+- **Expected:** An authorized user can save a dated maintenance record for a vehicle.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor account and registered vehicle `KA10AB1001`. Source inspection found no maintenance-record form or API route in the current build.
+- **Test action:** Submitted maintenance date `2026-09-15` and details `Brake pads replaced` to the vehicle maintenance route.
+- **Observed:** The request returned HTTP 404 `Not found`; no maintenance record was created.
+- **Result:** **Failed.** This build does not provide a maintenance-record endpoint/form.
+- **Defect:** Vehicle maintenance record entry is unsupported. No code changes made, per instruction.
