@@ -1261,8 +1261,8 @@ test("ST-08 retest: vehicle history enforces customer ownership and staff roles"
   const technician: AuthenticatedUser = { id: "tech-history", email: "tech@example.com", displayName: "Tech", role: "Service Technician" };
   context.db.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
     .run(technician.id, technician.email, technician.displayName, "unused", technician.role, new Date().toISOString(), new Date().toISOString());
-  const staffDenied = await request(app).get(`/api/vehicles/${vehicle.id}/maintenance`).set("Authorization", `Bearer ${createToken(technician, secret)}`);
-  assert.notEqual(staffDenied.status, 200);
+  const staffDenied = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set("Authorization", `Bearer ${createToken(technician, secret)}`);
+  assert.equal(staffDenied.status, 403);
 });
 
 test("UT-13 retest: customer search filters by name", async () => {
