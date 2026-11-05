@@ -365,3 +365,9 @@ export const updateVehicleSchema = z
     (value) => Object.keys(value).length > 0,
     "Provide at least one field to update"
   );
+
+export const createMaintenanceRecordSchema = z.object({
+  maintenanceDate: z.iso.date(),
+  details: z.string().trim().min(1).max(2000),
+  serviceId: z.string().trim().min(1).optional()
+});

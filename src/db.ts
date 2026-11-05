@@ -81,6 +81,16 @@ export function initializeDatabase(db: AppDatabase): void {
       updated_at TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS maintenance_records (
+      id TEXT PRIMARY KEY,
+      vehicle_id TEXT NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+      maintenance_date TEXT NOT NULL,
+      details TEXT NOT NULL,
+      service_id TEXT REFERENCES services(id) ON DELETE SET NULL,
+      created_by TEXT NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS audit_events (
       id TEXT PRIMARY KEY,
       actor_user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
@@ -148,6 +158,8 @@ export function initializeDatabase(db: AppDatabase): void {
       ON services(review_status, created_at, id);
     CREATE INDEX IF NOT EXISTS idx_services_assigned_work
       ON services(assigned_to, status, updated_at);
+    CREATE INDEX IF NOT EXISTS idx_maintenance_vehicle_date
+      ON maintenance_records(vehicle_id, maintenance_date DESC, created_at DESC);
   `);
 }
 

@@ -1139,3 +1139,45 @@ test("vehicle routes reject unauthorized access", async () => {
   assert.equal(unauthenticated.status, 401);
   assert.equal(forbidden.status, 403);
 });
+
+test("maintenance history and customer, vehicle, and service searches filter results", async () => {
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  const customer = await request(app).post("/api/customers").set(headers).send({
+    name: "Rahul Kumar", email: "rahul@example.com", phone: "9876543210"
+  });
+  assert.equal(customer.status, 201);
+  const vehicle = await request(app).post("/api/vehicles").set(headers).send({
+    customerId: customer.body.customer.id, registrationNumber: "KA01AB1234",
+    make: "Toyota", model: "Corolla", year: 2022
+  });
+  assert.equal(vehicle.status, 201);
+
+  const customerSearch = await request(app).get("/api/customers?search=Rahul").set(headers);
+  assert.equal(customerSearch.status, 200);
+  assert.deepEqual(customerSearch.body.customers.map((row: { id: string }) => row.id), [customer.body.customer.id]);
+  const customerMiss = await request(app).get("/api/customers?search=NotThere").set(headers);
+  assert.equal(customerMiss.body.total, 0);
+  const vehicleSearch = await request(app).get("/api/vehicles?search=KA01AB1234").set(headers);
+  assert.equal(vehicleSearch.status, 200);
+  assert.deepEqual(vehicleSearch.body.vehicles.map((row: { id: string }) => row.id), [vehicle.body.vehicle.id]);
+
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status,
+    work_performed, created_by, created_at, updated_at) VALUES (?, ?, ?, 'completed', 'validated', ?, ?, ?, ?)`)
+    .run("service-brake-search", vehicle.body.vehicle.id, "Brake service", "Brake inspection", context.admin.id, now, now);
+  const serviceSearch = await request(app).get("/api/services?search=Brake%20inspection").set(headers);
+  assert.equal(serviceSearch.status, 200);
+  assert.deepEqual(serviceSearch.body.services.map((row: { id: string }) => row.id), ["service-brake-search"]);
+  const serviceMiss = await request(app).get("/api/services?search=SR9999").set(headers);
+  assert.equal(serviceMiss.body.total, 0);
+
+  const maintenance = await request(app).post(`/api/vehicles/${vehicle.body.vehicle.id}/maintenance`).set(headers).send({
+    maintenanceDate: "2026-09-15", details: "Brake pads replaced"
+  });
+  assert.equal(maintenance.status, 201);
+  const history = await request(app).get(`/api/vehicles/${vehicle.body.vehicle.id}/history`).set(headers);
+  assert.equal(history.status, 200);
+  assert.equal(history.body.maintenanceRecords[0].details, "Brake pads replaced");
+  assert.equal(history.body.serviceRecords[0].workPerformed, "Brake inspection");
+});
