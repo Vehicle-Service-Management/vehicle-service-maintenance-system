@@ -25,8 +25,8 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | UT-04 | Passed | Customer was created and displayed correctly in the browser |
 | UT-05 | Passed | Blank customer name triggered required-field validation; submission stayed blocked |
 | UT-06 | Passed | Service Advisor registered a Honda City; vehicle appeared under the selected customer |
-| IT-04 | Not run | — |
-| IT-05 | Not run | — |
+| IT-04 | Passed | Advisor could view customer/vehicle records; Technician and Customer access was denied (403) |
+| IT-05 | Passed | Invalid phone/year rejected; valid phone and vehicle model updates persisted and displayed on reread |
 | IT-06 | Not run | — |
 | ST-03 | Not run | — |
 | ST-04 | Not run | — |
@@ -185,3 +185,21 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Customer creation returned HTTP 201; vehicle registration returned HTTP 201 with the expected customer ID, registration number, make, model, and year. Listing the customer's vehicles returned HTTP 200 with the new vehicle.
 - **Result:** **Passed.** The vehicle was created and linked to the selected customer.
 - **Defect:** None observed in this API flow. Browser UI behavior was not tested.
+
+### IT-04 - Restrict customer and vehicle records by role
+
+- **Expected:** Users can view only customer and vehicle records permitted for their role.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with Service Advisor, Service Technician, and Customer accounts, plus a linked customer and vehicle.
+- **Test actions:** Requested customer list/detail and vehicle list/detail endpoints as each role.
+- **Observed:** The Service Advisor received HTTP 200 for all four requests and could see the seeded records. The Service Technician and Customer each received HTTP 403 for all four requests; the denied responses did not expose the seeded vehicle registration.
+- **Result:** **Passed.** Customer and vehicle access was limited to the authorized Service Advisor role in the API. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### IT-05 - Validate and persist customer and vehicle updates
+
+- **Expected:** Valid customer and vehicle updates are checked, saved, and displayed when the records are reopened.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with a Service Advisor account, customer, and vehicle.
+- **Test actions:** Tried an invalid short customer phone and invalid future vehicle year, then changed the customer phone to `9876500000` and vehicle model to `City ZX`; fetched both records again.
+- **Observed:** The invalid phone and year returned HTTP 400. Both valid updates returned HTTP 200. Reopening the records returned the updated phone and model.
+- **Result:** **Passed.** Invalid data was rejected and valid customer/vehicle updates persisted. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
