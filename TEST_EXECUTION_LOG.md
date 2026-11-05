@@ -24,7 +24,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | ST-02 | Passed | Combined invalid-login, Customer authorization, and expired-session flow confirmed |
 | UT-04 | Passed | Customer was created and displayed correctly in the browser |
 | UT-05 | Passed | Blank customer name triggered required-field validation; submission stayed blocked |
-| UT-06 | Not run | — |
+| UT-06 | Passed | Service Advisor registered a Honda City; vehicle appeared under the selected customer |
 | IT-04 | Not run | — |
 | IT-05 | Not run | — |
 | IT-06 | Not run | — |
@@ -175,3 +175,13 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed in browser:** Required-field feedback appeared for Customer name, and the form remained open without a creation confirmation.
 - **Result:** **Passed.**
 - **Defect:** None confirmed.
+
+### UT-06 - Register a vehicle for a customer
+
+- **Expected:** Authorized staff can register a vehicle and associate it with the selected customer.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with a Service Advisor account.
+- **Test data:** Customer `UT-06 Customer`; registration `KA01AB1234`; Honda City; year 2022.
+- **Test action:** Created the customer through the API as the Service Advisor, then submitted the vehicle registration.
+- **Observed:** Customer creation returned HTTP 201; vehicle registration returned HTTP 201 with the expected customer ID, registration number, make, model, and year. Listing the customer's vehicles returned HTTP 200 with the new vehicle.
+- **Result:** **Passed.** The vehicle was created and linked to the selected customer.
+- **Defect:** None observed in this API flow. Browser UI behavior was not tested.
