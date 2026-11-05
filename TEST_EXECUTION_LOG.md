@@ -484,3 +484,4 @@ The following previously failed cases were retested after implementing maintenan
 - **IT-13: Passed.** Its named regression test passed individually with Node's test-name filter.
 - **IT-14: Passed.** Its named regression test passed individually with Node's test-name filter.
 - **IT-15: Passed.** Its named regression test passed individually with Node's test-name filter.
+- **ST-09: Passed.** Its named regression test passed individually with Node's test-name filter.
