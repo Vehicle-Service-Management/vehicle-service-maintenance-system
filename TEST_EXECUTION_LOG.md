@@ -486,3 +486,8 @@ The following previously failed cases were retested after implementing maintenan
 - **IT-15: Passed.** Its named regression test passed individually with Node's test-name filter.
 - **ST-09: Passed.** Its named regression test passed individually with Node's test-name filter.
 - **ST-10: Passed.** Its named regression test passed individually with Node's test-name filter.
+
+### Final full-suite verification
+
+- **Date:** 2026-11-05
+- **Result:** `npm test` passed **40/40** tests, with 0 failures. The run used a temporary `NODE_OPTIONS` shim for this environment's Node 24 `os.userInfo()` ENOMEM issue.
