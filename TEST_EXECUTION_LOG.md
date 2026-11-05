@@ -39,9 +39,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | ST-05 | Passed | Request review, assignment, technician activity, and service record update completed successfully |
 | ST-06 | Passed | Technician saw own request; other technician's request returned 404 and update was denied (403) |
 | UT-10 | Failed | Maintenance-record submission returned 404; no maintenance-record endpoint is implemented |
-| UT-11 | Not run | — |
-| UT-12 | Not run | — |
-| IT-10 | Not run | — |
+| UT-11 | Passed | Completing service activity changed status to completed and set completion time |
+| UT-12 | Passed | Customer retrieved current completed status and two service-history records for the vehicle |
+| IT-10 | Passed | Completing the assigned service activity updated its request status to completed |
 | IT-11 | Not run | — |
 | IT-12 | Not run | — |
 | ST-07 | Not run | — |
@@ -311,3 +311,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The request returned HTTP 404 `Not found`; no maintenance record was created.
 - **Result:** **Failed.** This build does not provide a maintenance-record endpoint/form.
 - **Defect:** Vehicle maintenance record entry is unsupported. No code changes made, per instruction.
+
+### UT-11 - Update service status when progress is recorded
+
+- **Expected:** Recording service progress/completion updates the service status.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, and Service Technician accounts and a registered vehicle.
+- **Test actions:** Created, validated, and assigned a service request; recorded work performed; moved it to `in_progress`, then `completed`; reopened the record.
+- **Observed:** Both execution updates returned HTTP 200. The reopened service had status `completed` and a completion timestamp.
+- **Result:** **Passed.** Service status reflected the recorded completion. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### UT-12 - Retrieve current status and service history
+
+- **Expected:** An authorized user can retrieve current service status and relevant vehicle history.
+- **Setup:** Used an isolated in-memory SQLite database with a linked Customer account, one registered vehicle, a completed service, and a second request.
+- **Test actions:** Retrieved the completed request status and listed the customer's service requests.
+- **Observed:** The current request returned status `completed`; the service list returned both vehicle-linked records.
+- **Result:** **Passed.** Current status and service history were available through the customer service-request endpoints. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### IT-10 - Reflect service activity completion in status
+
+- **Expected:** Completing a service activity updates the related service request status.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, and Service Technician accounts, a registered vehicle, and a service request.
+- **Test actions:** Validated and assigned the request, recorded `Brake pads replaced`, completed the activity, and reopened the service status.
+- **Observed:** The completion update returned HTTP 200. The related request showed status `completed`, the recorded work, and a completion timestamp.
+- **Result:** **Passed.** Completion updated the related service status. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
