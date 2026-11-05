@@ -51,9 +51,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | UT-15 | Failed | Nonmatching registration search returned both vehicles instead of a no-results response |
 | IT-13 | Failed | Request-ID search returned both service requests; query was not applied |
 | IT-14 | Failed | Activity search returned both service requests instead of filtering to the matching activity |
-| IT-15 | Not run | — |
-| ST-09 | Not run | — |
-| ST-10 | Not run | — |
+| IT-15 | Failed | Cross-customer record was hidden (404), but search query was ignored and did not filter results |
+| ST-09 | Failed | Search queries did not filter customers, vehicles, requests, or activities; no search workflow is implemented |
+| ST-10 | Failed | Nonexistent search returned records; direct cross-customer service access was denied (404) |
 
 ## Case details
 
@@ -419,3 +419,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The activity was stored on its request, but the API returned both service requests; the query was ignored.
 - **Result:** **Failed.** Activity details can be retrieved by request, but activity search does not filter results.
 - **Defect:** Service activity search is unavailable. No code changes made, per instruction.
+
+### IT-15 - Restrict search results by user permissions
+
+- **Expected:** Search results exclude records outside the restricted user's permitted scope.
+- **Setup:** Used an isolated in-memory SQLite database with two Customers, separate linked vehicles and service requests.
+- **Test actions:** Queried the service list as Customer A using Customer B's request ID, then directly requested Customer B's service.
+- **Observed:** The search query was ignored; the list returned Customer A's own request. Direct access to Customer B's request returned HTTP 404.
+- **Result:** **Failed.** Cross-customer access was restricted, but search is not implemented, so the required permission-filtered search could not be performed.
+- **Defect:** Search functionality is unavailable. No code changes made, per instruction.
+
+### ST-09 - Complete search workflow across records
+
+- **Expected:** Searches return matching customer, vehicle, service request, and activity records.
+- **Setup:** Used an isolated in-memory SQLite database with two Customers, vehicles, and service requests; recorded a brake-inspection activity.
+- **Test actions:** Queried the customer, vehicle, and service APIs using matching customer, registration, and activity criteria.
+- **Observed:** The APIs returned HTTP 200, but search terms were ignored. Customer and service queries returned multiple records; the activity was present in the unfiltered service list. The current UI has no search workflow.
+- **Result:** **Failed.** Search did not filter the results to the requested records.
+- **Defect:** Search across customer, vehicle, service request, and activity records is unavailable. No code changes made, per instruction.
+
+### ST-10 - Verify search no-result and security behavior
+
+- **Expected:** A nonexistent search shows no results, and restricted searches do not expose another customer's records.
+- **Setup:** Used an isolated in-memory SQLite database with two Customers and separate service requests.
+- **Test actions:** Searched for nonexistent request `SR9999`, queried with another customer's request ID as Customer B, and directly requested that restricted service.
+- **Observed:** The nonexistent search returned both authorized staff-visible records because the search term was ignored. Customer B's list contained only their own request; direct access to Customer A's service returned HTTP 404.
+- **Result:** **Failed.** Cross-customer service access was blocked, but search filtering and no-results behavior are unavailable.
+- **Defect:** Search/no-results functionality is unavailable. No code changes made, per instruction.
