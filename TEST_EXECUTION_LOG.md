@@ -33,9 +33,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | UT-07 | Failed | Request was created (201), but the submitted service date was not stored or returned |
 | UT-08 | Failed | Blank vehicle was rejected (400), but a valid vehicle with blank request date was accepted (201) |
 | UT-09 | Passed | Technician viewed assigned work and recorded work performed and notes |
-| IT-07 | Not run | — |
-| IT-08 | Not run | — |
-| IT-09 | Not run | — |
+| IT-07 | Passed | Retrieved service request retained the correct vehicle and customer association |
+| IT-08 | Passed | Assigned request appeared in the selected technician's assigned-work list |
+| IT-09 | Passed | Brake inspection activity stayed on its original request; unrelated request remained unchanged |
 | ST-05 | Not run | — |
 | ST-06 | Not run | — |
 | UT-10 | Not run | — |
@@ -257,3 +257,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The technician saw the assigned request. The execution update returned HTTP 200; reopening the request returned `Engine oil replaced` and `Oil and filter replaced`.
 - **Result:** **Passed.** The assigned technician recorded service activity successfully.
 - **Defect:** None observed in this API flow. Browser UI behavior was not tested.
+
+### IT-07 - Link a service request to the correct vehicle
+
+- **Expected:** A service request stores and displays its selected vehicle association.
+- **Setup:** Used an isolated in-memory SQLite database with a linked Customer account and two registered vehicles.
+- **Test actions:** Created a General Service request for vehicle `KA01AB1234`, then reopened it.
+- **Observed:** Request creation returned HTTP 201; retrieval returned HTTP 200 with the expected vehicle and customer IDs.
+- **Result:** **Passed.** The service request retained the correct vehicle association. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### IT-08 - Assign service work to a technician
+
+- **Expected:** Authorized staff can assign work and the selected technician can see it in assigned work.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, and Service Technician accounts and a registered vehicle.
+- **Test actions:** Created and validated a request, assigned it to the technician, then retrieved the technician's assigned-work list.
+- **Observed:** Assignment returned HTTP 200; the technician's assigned-work endpoint returned HTTP 200 and included the request with the selected technician ID.
+- **Result:** **Passed.** The selected technician could view the assigned service work. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### IT-09 - Keep service activity with its original request
+
+- **Expected:** Recorded service activity remains associated with the request where it was entered.
+- **Setup:** Used an isolated in-memory SQLite database with two service requests, a Service Advisor, and a Service Technician.
+- **Test actions:** Validated and assigned the brake inspection request, recorded `Brake inspection` and `Front pads inspected`, then reopened it and an unrelated request.
+- **Observed:** The updated request returned HTTP 200 with the activity details. The unrelated request retained empty activity fields.
+- **Result:** **Passed.** The activity remained on the correct service request. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
