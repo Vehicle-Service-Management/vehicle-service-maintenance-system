@@ -52,6 +52,7 @@ export function createServiceRequestController(db: AppDatabase) {
         INSERT INTO services (
           id,
           vehicle_id,
+          request_date,
           service_type,
           description,
           status,
@@ -60,10 +61,11 @@ export function createServiceRequestController(db: AppDatabase) {
           created_at,
           updated_at
         )
-        VALUES (?, ?, ?, ?, 'received', 'submitted', ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, 'received', 'submitted', ?, ?, ?)
       `).run(
         id,
         vehicle.id,
+        input.requestDate ?? null,
         serviceType,
         description,
         req.user!.id,
@@ -136,6 +138,7 @@ export function createServiceRequestController(db: AppDatabase) {
 
     const next = {
       vehicleId: vehicle.id,
+      requestDate: input.requestDate ?? existing.requestDate,
       serviceType: input.serviceType === undefined
         ? existing.serviceType
         : input.serviceType?.trim() || null,
@@ -144,7 +147,7 @@ export function createServiceRequestController(db: AppDatabase) {
         : input.description?.trim() || ""
     };
     const changes: Record<string, unknown> = {};
-    for (const key of ["vehicleId", "serviceType", "description"] as const) {
+    for (const key of ["vehicleId", "requestDate", "serviceType", "description"] as const) {
       if (next[key] !== existing[key]) {
         changes[key] = { from: existing[key], to: next[key] };
       }
@@ -160,11 +163,11 @@ export function createServiceRequestController(db: AppDatabase) {
     db.transaction(() => {
       db.prepare(`
         UPDATE services
-        SET vehicle_id = ?, service_type = ?, description = ?,
+        SET vehicle_id = ?, request_date = ?, service_type = ?, description = ?,
             review_status = 'submitted', reviewed_by = NULL,
             reviewed_at = NULL, rejection_reason = NULL, updated_at = ?
         WHERE id = ?
-      `).run(next.vehicleId, next.serviceType, next.description, now, existing.id);
+      `).run(next.vehicleId, next.requestDate, next.serviceType, next.description, now, existing.id);
 
       recordAuditEvent(db, {
         actor: req.user!,

@@ -31,6 +31,7 @@ export function initializeDatabase(db: AppDatabase): void {
       description TEXT NOT NULL,
       vehicle_id TEXT REFERENCES vehicles(id),
       service_type TEXT,
+      request_date TEXT,
       status TEXT NOT NULL CHECK (
         status IN (
           'received',
@@ -116,6 +117,7 @@ export function initializeDatabase(db: AppDatabase): void {
 
   ensureColumn(db, "services", "vehicle_id", "TEXT REFERENCES vehicles(id)");
   ensureColumn(db, "services", "service_type", "TEXT");
+  ensureColumn(db, "services", "request_date", "TEXT");
   ensureColumn(
     db,
     "services",

@@ -15,6 +15,7 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [customerId, setCustomerId] = useState(request?.customerId ?? '')
   const [vehicleId, setVehicleId] = useState(request?.vehicleId ?? '')
+  const [requestDate, setRequestDate] = useState(request?.requestDate ?? '')
   const [serviceType, setServiceType] = useState(request?.serviceType ?? '')
   const [description, setDescription] = useState(request?.description ?? '')
   const [loading, setLoading] = useState(true)
@@ -116,7 +117,12 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
 
     setSaving(true)
     try {
-      const body = { vehicleId, serviceType: serviceType.trim(), description: description.trim() }
+      const body = {
+        vehicleId,
+        ...(requestDate ? { requestDate } : {}),
+        serviceType: serviceType.trim(),
+        description: description.trim(),
+      }
       const result = request
         ? await apiRequest<{ service: ServiceRequest }>(`/api/services/${encodeURIComponent(request.id)}`, session.accessToken, {
             method: 'PATCH', body: JSON.stringify(body),
@@ -192,6 +198,11 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
                 </option>
               ))}
             </select>
+          </label>
+
+          <label className="field">
+            <span>Requested service date</span>
+            <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
           </label>
 
           <label className="field field--wide">

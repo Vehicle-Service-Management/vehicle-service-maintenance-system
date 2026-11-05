@@ -190,6 +190,7 @@ export function ServiceReviewQueue({ session }: { session: AuthSession }) {
             <button className="button button--quiet" type="button" onClick={() => { setSelected(null); setRejecting(false); setError('') }}>Close details</button>
           </div>
           <dl className="detail-grid">
+            {selected.service.requestDate && <div><dt>Requested date</dt><dd>{new Date(`${selected.service.requestDate}T12:00:00`).toLocaleDateString()}</dd></div>}
             <div><dt>Customer</dt><dd>{selected.customer?.name ?? 'Customer record unavailable'}</dd></div>
             <div><dt>Contact</dt><dd>{selected.customer?.phone ?? 'Not available'}</dd></div>
             <div><dt>Vehicle</dt><dd>{selected.vehicle ? `${selected.vehicle.registrationNumber} · ${selected.vehicle.year} ${selected.vehicle.make} ${selected.vehicle.model}` : 'Registered vehicle unavailable'}</dd></div>

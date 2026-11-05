@@ -92,6 +92,7 @@ export function CustomerRequestList({ session }: { session: AuthSession }) {
                 <p className="request-card__description">{request.description || 'No description was provided.'}</p>
                 {request.rejectionReason && <p className="notice notice--error"><strong>Advisor feedback:</strong> {request.rejectionReason}</p>}
                 <div className="request-card__footer">
+                  {request.requestDate && <span>Requested for {new Date(`${request.requestDate}T12:00:00`).toLocaleDateString()}</span>}
                   <span>Submitted {new Date(request.createdAt).toLocaleDateString()}</span>
                   {request.status === 'rejected' && (
                     <button className="button button--secondary" type="button" onClick={() => setEditing(request)}>Correct and resubmit</button>

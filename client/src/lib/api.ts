@@ -50,6 +50,7 @@ export interface ServiceRequest {
   id: string
   vehicleId: string | null
   customerId: string | null
+  requestDate?: string | null
   serviceType: string | null
   description: string
   status: string

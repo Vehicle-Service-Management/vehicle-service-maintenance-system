@@ -26,6 +26,7 @@ test("database initialization migrates existing service and customer tables", ()
   for (const column of [
     "vehicle_id",
     "service_type",
+    "request_date",
     "review_status",
     "reviewed_by",
     "reviewed_at",
@@ -291,6 +292,7 @@ test("customers can submit requests for their vehicles and advisors must validat
     .set("Authorization", `Bearer ${context.customerToken}`)
     .send({
       vehicleId: customerVehicleId,
+      requestDate: "2026-09-15",
       serviceType: "Inspection",
       description: "Brake inspection"
     });
@@ -313,6 +315,10 @@ test("customers can submit requests for their vehicles and advisors must validat
   assert.equal(created.status, 201);
   assert.equal(created.body.service.status, "submitted");
   assert.equal(created.body.service.customerId, customerProfileId);
+  assert.equal(created.body.service.requestDate, "2026-09-15");
+  const reopened = await request(app).get(`/api/services/${created.body.service.id}`)
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  assert.equal(reopened.body.service.requestDate, "2026-09-15");
   assert.equal(review.status, 200);
   assert.equal(review.body.service.status, "validated");
   assert.equal(prematureStatus.status, 409);
@@ -342,7 +348,7 @@ test("incomplete requests stay submitted until corrected and pass advisor review
 
   const submitted = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${context.customerToken}`)
-    .send({ vehicleId, description: "Inspect the brakes" });
+    .send({ vehicleId, requestDate: "2026-09-15", description: "Inspect the brakes" });
   const invalidReview = await request(app).patch(`/api/services/${submitted.body.service.id}/review`)
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({ decision: "validate" });
@@ -384,7 +390,7 @@ test("advisors can reject with a reason and customers can correct and resubmit",
   `).run(vehicleId, customerId, "KA03EF8910", "Suzuki", "Swift", 2020, now, now);
   const created = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${context.customerToken}`)
-    .send({ vehicleId, serviceType: "Repair", description: "Engine noise" });
+    .send({ vehicleId, requestDate: "2026-09-15", serviceType: "Repair", description: "Engine noise" });
   const noReason = await request(app).patch(`/api/services/${created.body.service.id}/review`)
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({ decision: "reject" });
@@ -406,6 +412,7 @@ test("advisors can reject with a reason and customers can correct and resubmit",
   assert.equal(resubmitted.status, 200);
   assert.equal(resubmitted.body.service.status, "submitted");
   assert.equal(resubmitted.body.service.rejectionReason, null);
+  assert.equal(resubmitted.body.service.requestDate, "2026-09-15");
   assert.equal(validated.status, 200);
   assert.equal(validated.body.service.status, "validated");
 });
@@ -449,7 +456,7 @@ test("administrators link customer accounts to existing customer records", async
     });
   const ownRequest = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${customerToken}`)
-    .send({ vehicleId: vehicle.body.vehicle.id, serviceType: "Oil change", description: "Routine service" });
+    .send({ vehicleId: vehicle.body.vehicle.id, requestDate: "2026-09-15", serviceType: "Oil change", description: "Routine service" });
   const duplicateAccount = await request(app).post("/api/admin/users")
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({
@@ -473,7 +480,7 @@ test("administrators link customer accounts to existing customer records", async
     });
   const otherCustomerRequest = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${customerToken}`)
-    .send({ vehicleId: otherVehicle.body.vehicle.id, serviceType: "Inspection", description: "Not owned" });
+    .send({ vehicleId: otherVehicle.body.vehicle.id, requestDate: "2026-09-15", serviceType: "Inspection", description: "Not owned" });
   const ownList = await request(app).get("/api/services")
     .set("Authorization", `Bearer ${customerToken}`);
 

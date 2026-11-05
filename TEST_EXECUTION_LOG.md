@@ -30,7 +30,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | IT-06 | Passed | Vehicle retained its customer association after a valid vehicle update |
 | ST-03 | Passed | Customer and vehicle created, viewed, updated, and reopened with changes persisted |
 | ST-04 | Passed | Customer-role updates were denied (403); stored customer and vehicle values remained unchanged |
-| UT-07 | Failed | Request was created (201), but the submitted service date was not stored or returned |
+| UT-07 | Passed | Retest: request date 2026-09-15 saved and returned when the service request was reopened |
 | UT-08 | Failed | Blank vehicle was rejected (400), but a valid vehicle with blank request date was accepted (201) |
 | UT-09 | Passed | Technician viewed assigned work and recorded work performed and notes |
 | IT-07 | Passed | Retrieved service request retained the correct vehicle and customer association |
@@ -446,3 +446,11 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The nonexistent search returned both authorized staff-visible records because the search term was ignored. Customer B's list contained only their own request; direct access to Customer A's service returned HTTP 404.
 - **Result:** **Failed.** Cross-customer service access was blocked, but search filtering and no-results behavior are unavailable.
 - **Defect:** Search/no-results functionality is unavailable. No code changes made, per instruction.
+
+### UT-07 retest - Requested date persistence
+
+- **Retest date:** 2026-11-05 (Asia/Calcutta)
+- **Test action:** Submitted a General Service request for `KA01AB1234` with request date `2026-09-15`, then retrieved it again.
+- **Observed:** Creation returned HTTP 201 and retrieval returned HTTP 200 with `requestDate: 2026-09-15`. Existing-database migration also added the new request-date column successfully.
+- **Result:** **Passed.** The request date is captured and persisted. API build and client build passed.
+- **Note:** The full `npm test` command could not start because this environment's Node `os.userInfo()` failed with `ENOMEM`; the focused API round-trip and migration checks passed.
