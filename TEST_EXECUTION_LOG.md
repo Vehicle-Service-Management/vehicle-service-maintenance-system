@@ -27,9 +27,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | UT-06 | Passed | Service Advisor registered a Honda City; vehicle appeared under the selected customer |
 | IT-04 | Passed | Advisor could view customer/vehicle records; Technician and Customer access was denied (403) |
 | IT-05 | Passed | Invalid phone/year rejected; valid phone and vehicle model updates persisted and displayed on reread |
-| IT-06 | Not run | — |
-| ST-03 | Not run | — |
-| ST-04 | Not run | — |
+| IT-06 | Passed | Vehicle retained its customer association after a valid vehicle update |
+| ST-03 | Passed | Customer and vehicle created, viewed, updated, and reopened with changes persisted |
+| ST-04 | Passed | Customer-role updates were denied (403); stored customer and vehicle values remained unchanged |
 | UT-07 | Not run | — |
 | UT-08 | Not run | — |
 | UT-09 | Not run | — |
@@ -202,4 +202,31 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Test actions:** Tried an invalid short customer phone and invalid future vehicle year, then changed the customer phone to `9876500000` and vehicle model to `City ZX`; fetched both records again.
 - **Observed:** The invalid phone and year returned HTTP 400. Both valid updates returned HTTP 200. Reopening the records returned the updated phone and model.
 - **Result:** **Passed.** Invalid data was rejected and valid customer/vehicle updates persisted. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### IT-06 - Preserve vehicle customer association after update
+
+- **Expected:** A vehicle remains associated with the correct customer after registration and subsequent updates.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with a Service Advisor account.
+- **Test actions:** Registered customer Rahul Kumar and vehicle `KA01AB1234`, updated the vehicle model to `City ZX`, then retrieved the vehicle.
+- **Observed:** Creation and update requests succeeded. The retrieved vehicle retained the original customer ID and registration number and showed the updated model.
+- **Result:** **Passed.** The customer association remained intact after the vehicle update. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### ST-03 - Complete customer and vehicle workflow
+
+- **Expected:** Valid customer and vehicle records can be created, viewed, updated, and reopened with correct association.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with a Service Advisor account.
+- **Test actions:** Created Rahul Kumar and vehicle `KA01ST0303`, viewed both records, changed the customer phone to `9876500000` and vehicle model to `City ZX`, then fetched both records again.
+- **Observed:** Create, view, and update requests succeeded. Reopened records showed the updated phone and model, and the vehicle retained its customer ID.
+- **Result:** **Passed.** The end-to-end API workflow completed with correct association and persisted updates. Browser UI behavior was not tested.
+- **Defect:** None observed in this API flow.
+
+### ST-04 - Block customer-role edits to customer and vehicle records
+
+- **Expected:** A lower-privilege user cannot update customer or vehicle information, and rejected updates are not saved.
+- **Setup:** Built the current branch successfully and used an isolated in-memory SQLite database with a Customer account, linked customer record, vehicle, and Service Advisor account for verification.
+- **Test actions:** Attempted to update the customer phone and vehicle model as the Customer, then reread both records as the Service Advisor.
+- **Observed:** Both update requests returned HTTP 403. The subsequent reads showed the original phone and model unchanged.
+- **Result:** **Passed.** Unauthorized updates were blocked and did not change stored data. Browser UI behavior was not tested.
 - **Defect:** None observed in this API flow.
