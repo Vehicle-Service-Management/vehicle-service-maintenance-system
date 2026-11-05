@@ -471,3 +471,6 @@ The following previously failed cases were retested after implementing maintenan
 - **Search (UT-13, UT-14, UT-15, IT-13, IT-14, IT-15, ST-09, ST-10):** The focused API regression searched customer name, vehicle registration, and service activity; each returned only the matching result. Unmatched customer and service searches returned total `0`. Service searches retain existing customer and technician scope conditions.
 - **Verification:** `npm test` passed **27/27** tests, including the new maintenance/search regression. API and client production builds passed. The test command required a temporary `NODE_OPTIONS` shim for Node 24's failing `os.userInfo()` call; the shim was stored under the system temporary directory and is not part of the repository.
 - **Result:** **Passed** for the listed retested cases based on the implemented endpoint behavior, search result filtering, no-result handling, vehicle history association, and role checks.
+
+## Individual retest commits - 2026-11-05
+- **UT-10: Passed.** Its named regression test passed individually with Node's test-name filter.
