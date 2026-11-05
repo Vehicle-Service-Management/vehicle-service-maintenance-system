@@ -30,9 +30,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | IT-06 | Passed | Vehicle retained its customer association after a valid vehicle update |
 | ST-03 | Passed | Customer and vehicle created, viewed, updated, and reopened with changes persisted |
 | ST-04 | Passed | Customer-role updates were denied (403); stored customer and vehicle values remained unchanged |
-| UT-07 | Not run | — |
-| UT-08 | Not run | — |
-| UT-09 | Not run | — |
+| UT-07 | Failed | Request was created (201), but the submitted service date was not stored or returned |
+| UT-08 | Failed | Blank vehicle was rejected (400), but a valid vehicle with blank request date was accepted (201) |
+| UT-09 | Passed | Technician viewed assigned work and recorded work performed and notes |
 | IT-07 | Not run | — |
 | IT-08 | Not run | — |
 | IT-09 | Not run | — |
@@ -230,3 +230,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Both update requests returned HTTP 403. The subsequent reads showed the original phone and model unchanged.
 - **Result:** **Passed.** Unauthorized updates were blocked and did not change stored data. Browser UI behavior was not tested.
 - **Defect:** None observed in this API flow.
+
+### UT-07 - Create a service request with valid information
+
+- **Expected:** An authorized user can create and retrieve a service request with its vehicle and request date.
+- **Setup:** Used an isolated in-memory SQLite database with a linked Customer account and registered vehicle.
+- **Test action:** Submitted a General Service request for vehicle `KA01AB1234`, description `Engine inspection`, and request date `2026-09-15`, then retrieved it.
+- **Observed:** The API created the request with HTTP 201 and returned the vehicle, service type, and description. The request date was absent from the response and stored service fields.
+- **Result:** **Failed.** The required date from the test plan is not represented or persisted by the current request API.
+- **Defect:** Request date field is unsupported. No code changes made, per instruction.
+
+### UT-08 - Reject a service request with required information missing
+
+- **Expected:** A request cannot be saved when required vehicle or request-date information is missing.
+- **Setup:** Used an isolated in-memory SQLite database with a linked Customer account and registered vehicle.
+- **Test actions:** Submitted a request with both vehicle and date blank, then submitted another with a valid vehicle but blank date.
+- **Observed:** The request with a blank vehicle returned HTTP 400. The request with a valid vehicle and blank date returned HTTP 201.
+- **Result:** **Failed.** Vehicle validation works, but a blank request date does not prevent request creation.
+- **Defect:** Request date is unsupported and not validated. No code changes made, per instruction.
+
+### UT-09 - Record service activity on assigned work
+
+- **Expected:** A technician can view assigned work and record service activity details.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, and Service Technician accounts and a registered vehicle.
+- **Test actions:** Created a service request, validated and assigned it to the technician, opened assigned work, then recorded work performed and notes.
+- **Observed:** The technician saw the assigned request. The execution update returned HTTP 200; reopening the request returned `Engine oil replaced` and `Oil and filter replaced`.
+- **Result:** **Passed.** The assigned technician recorded service activity successfully.
+- **Defect:** None observed in this API flow. Browser UI behavior was not tested.
