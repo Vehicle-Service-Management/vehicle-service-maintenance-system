@@ -462,3 +462,12 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Missing, blank, and invalid dates returned HTTP 400. The valid date returned HTTP 201 and remained `2026-09-15` after correction and retrieval.
 - **Result:** **Passed.** The API rejects invalid/missing dates and persists a valid requested date. API/client builds passed.
 - **Note:** The full `npm test` command remains unavailable because Node `os.userInfo()` fails with `ENOMEM` in this environment; focused API checks passed.
+
+## Fix verification retest - 2026-11-05
+
+The following previously failed cases were retested after implementing maintenance history and search: **UT-10, IT-11, IT-12, ST-07, ST-08, UT-13, UT-14, UT-15, IT-13, IT-14, IT-15, ST-09, ST-10**.
+
+- **Maintenance (UT-10, IT-11, IT-12, ST-07, ST-08):** The focused API regression created a dated maintenance record for one vehicle, retrieved it from that vehicle's history alongside completed service activity, and verified the history route. Maintenance routes require Administrator or Service Advisor; customer history is limited to the customer's own vehicle and returns 404 for unauthorized vehicle IDs.
+- **Search (UT-13, UT-14, UT-15, IT-13, IT-14, IT-15, ST-09, ST-10):** The focused API regression searched customer name, vehicle registration, and service activity; each returned only the matching result. Unmatched customer and service searches returned total `0`. Service searches retain existing customer and technician scope conditions.
+- **Verification:** `npm test` passed **27/27** tests, including the new maintenance/search regression. API and client production builds passed. The test command required a temporary `NODE_OPTIONS` shim for Node 24's failing `os.userInfo()` call; the shim was stored under the system temporary directory and is not part of the repository.
+- **Result:** **Passed** for the listed retested cases based on the implemented endpoint behavior, search result filtering, no-result handling, vehicle history association, and role checks.
