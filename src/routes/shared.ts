@@ -59,7 +59,7 @@ export const updateUserSchema = z.object({
 
 export const createServiceSchema = z.object({
   vehicleId: z.string().trim().min(1),
-  requestDate: z.iso.date().optional(),
+  requestDate: z.iso.date(),
   serviceType: z.string().trim().max(40).nullable().optional(),
   description: z.string().trim().max(500).nullable().optional()
 });

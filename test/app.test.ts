@@ -331,6 +331,47 @@ test("customers can submit requests for their vehicles and advisors must validat
   assert.equal(change.details.to, "in_progress");
 });
 
+test("service request creation requires a valid requested date", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerId = "customer-record-request-date";
+  const vehicleId = "vehicle-record-request-date";
+  context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, address, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(customerId, "Customer User", context.customer.email, "9876543210", null, context.customer.id, now, now);
+  context.db.prepare(`
+    INSERT INTO vehicles (id, customer_id, registration_number, make, model, year, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(vehicleId, customerId, "KA06KL0123", "Honda", "City", 2022, now, now);
+  const headers = { Authorization: `Bearer ${context.customerToken}` };
+
+  const missingDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+  const blankDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    requestDate: "",
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+  const validDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    requestDate: "2026-09-15",
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+
+  assert.equal(missingDate.status, 400);
+  assert.ok(missingDate.body.details.some((issue: { path: Array<string | number> }) => issue.path.includes("requestDate")));
+  assert.equal(blankDate.status, 400);
+  assert.ok(blankDate.body.details.some((issue: { path: Array<string | number> }) => issue.path.includes("requestDate")));
+  assert.equal(validDate.status, 201);
+  assert.equal(validDate.body.service.requestDate, "2026-09-15");
+});
+
 test("incomplete requests stay submitted until corrected and pass advisor review", async () => {
   const app = createApp(context.db, secret);
   const now = new Date().toISOString();

@@ -31,7 +31,7 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | ST-03 | Passed | Customer and vehicle created, viewed, updated, and reopened with changes persisted |
 | ST-04 | Passed | Customer-role updates were denied (403); stored customer and vehicle values remained unchanged |
 | UT-07 | Passed | Retest: request date 2026-09-15 saved and returned when the service request was reopened |
-| UT-08 | Failed | Blank vehicle was rejected (400), but a valid vehicle with blank request date was accepted (201) |
+| UT-08 | Passed | Retest: missing, blank, and invalid dates rejected (400); valid date accepted and preserved |
 | UT-09 | Passed | Technician viewed assigned work and recorded work performed and notes |
 | IT-07 | Passed | Retrieved service request retained the correct vehicle and customer association |
 | IT-08 | Passed | Assigned request appeared in the selected technician's assigned-work list |
@@ -454,3 +454,11 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Creation returned HTTP 201 and retrieval returned HTTP 200 with `requestDate: 2026-09-15`. Existing-database migration also added the new request-date column successfully.
 - **Result:** **Passed.** The request date is captured and persisted. API build and client build passed.
 - **Note:** The full `npm test` command could not start because this environment's Node `os.userInfo()` failed with `ENOMEM`; the focused API round-trip and migration checks passed.
+
+### UT-08 retest - Require requested service date
+
+- **Retest date:** 2026-11-05 (Asia/Calcutta)
+- **Test actions:** Submitted requests with a missing date, blank date, invalid calendar date, and valid date; corrected the valid request and reopened it.
+- **Observed:** Missing, blank, and invalid dates returned HTTP 400. The valid date returned HTTP 201 and remained `2026-09-15` after correction and retrieval.
+- **Result:** **Passed.** The API rejects invalid/missing dates and persists a valid requested date. API/client builds passed.
+- **Note:** The full `npm test` command remains unavailable because Node `os.userInfo()` fails with `ENOMEM` in this environment; focused API checks passed.

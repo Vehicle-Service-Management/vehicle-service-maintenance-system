@@ -110,6 +110,10 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
       setError('Choose a registered vehicle before submitting.')
       return
     }
+    if (!requestDate) {
+      setError('Choose a requested service date.')
+      return
+    }
     if (!serviceType.trim() || !description.trim()) {
       setError('Enter a service type and a description of the work needed.')
       return
@@ -119,7 +123,7 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
     try {
       const body = {
         vehicleId,
-        ...(requestDate ? { requestDate } : {}),
+        requestDate,
         serviceType: serviceType.trim(),
         description: description.trim(),
       }
@@ -202,7 +206,7 @@ export function ServiceRequestForm({ session, request, onSaved, onCancel }: Prop
 
           <label className="field">
             <span>Requested service date</span>
-            <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} />
+            <input type="date" value={requestDate} onChange={(event) => setRequestDate(event.target.value)} required />
           </label>
 
           <label className="field field--wide">
