@@ -45,9 +45,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | IT-11 | Failed | Maintenance save returned 404; no vehicle maintenance history entry was created |
 | IT-12 | Failed | Completed activity appeared in service history, but maintenance save returned 404 and no maintenance details were available |
 | ST-07 | Failed | Service reached completed status, but maintenance record save returned 404 and history lacked maintenance details |
-| ST-08 | Not run | — |
-| UT-13 | Not run | — |
-| UT-14 | Not run | — |
+| ST-08 | Failed | Service access was correctly restricted, but vehicle maintenance details were unavailable (maintenance save 404) |
+| UT-13 | Failed | Customer search query returned both records instead of filtering to Rahul Kumar |
+| UT-14 | Failed | Vehicle search query returned both registrations instead of filtering to KA01AB1234 |
 | UT-15 | Not run | — |
 | IT-13 | Not run | — |
 | IT-14 | Not run | — |
@@ -365,3 +365,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** Service status became `completed` and the service appeared in history. Maintenance record submission returned HTTP 404; no maintenance details appeared in the history.
 - **Result:** **Failed.** Status and service history work, but the required maintenance record step is unavailable.
 - **Defect:** Vehicle maintenance record creation is unsupported. No code changes made, per instruction.
+
+### ST-08 - Show service and maintenance information with role restrictions
+
+- **Expected:** Authorized users can view relevant maintenance/service history; unauthorized users are denied or restricted.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor, Service Technician, two Customers, customer-linked vehicles, and a service request with recorded progress.
+- **Test actions:** Retrieved service history as the Advisor and owning Customer, attempted access as another Customer, and attempted to save a vehicle maintenance record.
+- **Observed:** Advisor and owning Customer could view the service. The other Customer received HTTP 404 for the request and an empty history list. The maintenance submission returned HTTP 404.
+- **Result:** **Failed.** Service information access was appropriately restricted, but maintenance records are not supported by this build.
+- **Defect:** Vehicle maintenance record creation is unsupported. No code changes made, per instruction.
+
+### UT-13 - Search customer records
+
+- **Expected:** Searching for `Rahul Kumar` displays matching customer records.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor and two customer records: Rahul Kumar and Priya Shah.
+- **Test action:** Requested the customer list with the search query `Rahul`.
+- **Observed:** The API returned HTTP 200 but returned both customer records; the query was not applied. The current customer screen also has no search control.
+- **Result:** **Failed.** Customer search does not filter results.
+- **Defect:** Customer search is unavailable. No code changes made, per instruction.
+
+### UT-14 - Search vehicle records
+
+- **Expected:** Searching for registration `KA01AB1234` displays the matching vehicle.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor and two vehicles under one customer.
+- **Test action:** Requested the customer's vehicle list with the registration query `KA01AB1234`.
+- **Observed:** The API returned HTTP 200 but returned both registrations; the query was not applied. The current vehicle screen also has no search control.
+- **Result:** **Failed.** Vehicle search does not filter results.
+- **Defect:** Vehicle search is unavailable. No code changes made, per instruction.
