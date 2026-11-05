@@ -474,3 +474,4 @@ The following previously failed cases were retested after implementing maintenan
 
 ## Individual retest commits - 2026-11-05
 - **UT-10: Passed.** Its named regression test passed individually with Node's test-name filter.
+- **IT-11: Passed.** Its named regression test passed individually with Node's test-name filter.
