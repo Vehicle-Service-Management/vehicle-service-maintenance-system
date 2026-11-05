@@ -48,9 +48,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | ST-08 | Failed | Service access was correctly restricted, but vehicle maintenance details were unavailable (maintenance save 404) |
 | UT-13 | Failed | Customer search query returned both records instead of filtering to Rahul Kumar |
 | UT-14 | Failed | Vehicle search query returned both registrations instead of filtering to KA01AB1234 |
-| UT-15 | Not run | — |
-| IT-13 | Not run | — |
-| IT-14 | Not run | — |
+| UT-15 | Failed | Nonmatching registration search returned both vehicles instead of a no-results response |
+| IT-13 | Failed | Request-ID search returned both service requests; query was not applied |
+| IT-14 | Failed | Activity search returned both service requests instead of filtering to the matching activity |
 | IT-15 | Not run | — |
 | ST-09 | Not run | — |
 | ST-10 | Not run | — |
@@ -392,3 +392,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The API returned HTTP 200 but returned both registrations; the query was not applied. The current vehicle screen also has no search control.
 - **Result:** **Failed.** Vehicle search does not filter results.
 - **Defect:** Vehicle search is unavailable. No code changes made, per instruction.
+
+### UT-15 - Show a no-results message for unmatched search
+
+- **Expected:** Searching for registration `KA99ZZ9999` displays no matching records and an appropriate no-results message.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor and two vehicle records.
+- **Test action:** Requested the customer's vehicle list with the nonmatching registration query.
+- **Observed:** The API returned HTTP 200 with both vehicles; the query was ignored. The vehicle screen has no search field or no-results state for searching.
+- **Result:** **Failed.** Search does not filter the list or produce a no-results response.
+- **Defect:** Vehicle search/no-results behavior is unavailable. No code changes made, per instruction.
+
+### IT-13 - Search service request records
+
+- **Expected:** Searching by a known service request identifier returns the matching request.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor, Customer, and two service requests.
+- **Test action:** Requested the service list with the first request's ID as the search query.
+- **Observed:** The API returned HTTP 200 with both service requests; the query was ignored.
+- **Result:** **Failed.** Service request search does not filter results.
+- **Defect:** Service request search is unavailable. No code changes made, per instruction.
+
+### IT-14 - Search service activity information
+
+- **Expected:** Searching by activity details returns the relevant service activity.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor, Customer, Service Technician, and two service requests.
+- **Test actions:** Recorded `Brake inspection` on one request, then requested the service list with that activity as the search query.
+- **Observed:** The activity was stored on its request, but the API returned both service requests; the query was ignored.
+- **Result:** **Failed.** Activity details can be retrieved by request, but activity search does not filter results.
+- **Defect:** Service activity search is unavailable. No code changes made, per instruction.
