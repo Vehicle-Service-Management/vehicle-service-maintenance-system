@@ -42,9 +42,9 @@ This table reflects the latest recorded result for each case. Per-run notes belo
 | UT-11 | Passed | Completing service activity changed status to completed and set completion time |
 | UT-12 | Passed | Customer retrieved current completed status and two service-history records for the vehicle |
 | IT-10 | Passed | Completing the assigned service activity updated its request status to completed |
-| IT-11 | Not run | — |
-| IT-12 | Not run | — |
-| ST-07 | Not run | — |
+| IT-11 | Failed | Maintenance save returned 404; no vehicle maintenance history entry was created |
+| IT-12 | Failed | Completed activity appeared in service history, but maintenance save returned 404 and no maintenance details were available |
+| ST-07 | Failed | Service reached completed status, but maintenance record save returned 404 and history lacked maintenance details |
 | ST-08 | Not run | — |
 | UT-13 | Not run | — |
 | UT-14 | Not run | — |
@@ -338,3 +338,30 @@ No application failure has been confirmed. UT-02 and IT-03 passed using the comb
 - **Observed:** The completion update returned HTTP 200. The related request showed status `completed`, the recorded work, and a completion timestamp.
 - **Result:** **Passed.** Completion updated the related service status. Browser UI behavior was not tested.
 - **Defect:** None observed in this API flow.
+
+### IT-11 - Associate a maintenance record with the correct vehicle
+
+- **Expected:** A maintenance record appears in Vehicle A history and not in Vehicle B history.
+- **Setup:** Used an isolated in-memory SQLite database with a Service Advisor account and two registered vehicles.
+- **Test action:** Submitted a maintenance record for Vehicle A and queried service history.
+- **Observed:** The maintenance submission returned HTTP 404. No maintenance record appeared for either vehicle.
+- **Result:** **Failed.** This build has no vehicle maintenance-record endpoint.
+- **Defect:** Maintenance record creation and vehicle history association are unsupported. No code changes made, per instruction.
+
+### IT-12 - Reflect service and maintenance details in vehicle history
+
+- **Expected:** Completed service activity and maintenance details appear consistently in the vehicle's service history.
+- **Setup:** Used an isolated in-memory SQLite database with a Customer, Service Advisor, Service Technician, registered vehicle, and completed service request.
+- **Test actions:** Completed the service activity, attempted to save a maintenance record, then queried the service list.
+- **Observed:** Completed service activity appeared in the service list. The maintenance submission returned HTTP 404, and no maintenance details were present.
+- **Result:** **Failed.** Service history contains the completed activity but cannot include a separately recorded maintenance entry.
+- **Defect:** Vehicle maintenance record creation is unsupported. No code changes made, per instruction.
+
+### ST-07 - Complete maintenance and status history workflow
+
+- **Expected:** Completion updates status and maintenance information is stored against the correct vehicle and shown in history.
+- **Setup:** Used an isolated in-memory SQLite database with Customer, Service Advisor, Service Technician, a registered vehicle, and an active service request.
+- **Test actions:** Updated service progress to completed, attempted to record maintenance details, then retrieved status and service history.
+- **Observed:** Service status became `completed` and the service appeared in history. Maintenance record submission returned HTTP 404; no maintenance details appeared in the history.
+- **Result:** **Failed.** Status and service history work, but the required maintenance record step is unavailable.
+- **Defect:** Vehicle maintenance record creation is unsupported. No code changes made, per instruction.
