@@ -3,17 +3,24 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - '**'
+
   pull_request:
     branches:
-      - main
+      - '**'
+
   workflow_dispatch:
+    inputs:
+      commit_sha:
+        description: 'Commit SHA to test (use a full commit SHA)'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  group: ci-${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -25,6 +32,14 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.commit_sha || github.sha }}
+
+      - name: Show tested commit
+        run: |
+          echo "Testing commit:"
+          git rev-parse HEAD
+          git log -1 --oneline
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
