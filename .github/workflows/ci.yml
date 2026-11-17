@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - main
+      - test/st01-retest-2026-11-02
   pull_request:
     branches:
       - main
+      - test/st01-retest-2026-11-02
   workflow_dispatch:
 
 permissions:
