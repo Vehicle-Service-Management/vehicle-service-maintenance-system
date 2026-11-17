@@ -43,15 +43,30 @@ export function createServicesRouter(context: RouteContext) {
             "validated",
             "rejected",
             ...serviceStatuses
-          ]).optional()
+          ]).optional(),
+          search: z.string().trim().max(200).optional()
         }),
-        { status: req.query.status },
+        { status: req.query.status, search: req.query.search },
         res
       );
       if (!filter) return;
 
       const conditions: string[] = [];
       const values: Array<string | number> = [];
+
+      if (filter.search) {
+        const pattern = `%${filter.search.replace(/[\\%_]/g, "\\$&")}%`;
+        conditions.push(`(s.id LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR s.service_type LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR s.description LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR s.request_date LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR s.work_performed LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR s.service_notes LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR v.registration_number LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR v.make LIKE ? ESCAPE '\\' COLLATE NOCASE OR v.model LIKE ? ESCAPE '\\' COLLATE NOCASE
+          OR c.name LIKE ? ESCAPE '\\' COLLATE NOCASE OR c.email LIKE ? ESCAPE '\\' COLLATE NOCASE)`);
+        values.push(...Array(11).fill(pattern));
+      }
 
       if (filter.status === "submitted" || filter.status === "rejected") {
         conditions.push("s.review_status = ?");
@@ -78,6 +93,7 @@ export function createServicesRouter(context: RouteContext) {
       const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
       const services = db.prepare(`
         ${serviceSelect}
+        LEFT JOIN customers c ON c.id = v.customer_id
         ${where}
         ORDER BY s.created_at DESC, s.id
         LIMIT ? OFFSET ?
@@ -86,6 +102,7 @@ export function createServicesRouter(context: RouteContext) {
         SELECT COUNT(*) AS count
         FROM services s
         LEFT JOIN vehicles v ON v.id = s.vehicle_id
+        LEFT JOIN customers c ON c.id = v.customer_id
         ${where}
       `).get(...values) as { count: number }).count;
 

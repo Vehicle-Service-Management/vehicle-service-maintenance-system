@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { apiRequest, type AuthSession, type ServiceRequest, type Vehicle } from '../../lib/api'
 
 type View = 'overview' | 'create' | 'requests' | 'review'
@@ -20,6 +20,23 @@ export function ServiceOverview({ session, onNavigate }: Props) {
   const [counts, setCounts] = useState({ main: 0, secondary: 0, third: 0 })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [searchResults, setSearchResults] = useState<ServiceRequest[] | null>(null)
+  const [searching, setSearching] = useState(false)
+
+  async function handleSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSearching(true)
+    setError('')
+    try {
+      const page = await apiRequest<RequestPage>(`/api/services?limit=100&search=${encodeURIComponent(search)}`, session.accessToken)
+      setSearchResults(page.services)
+    } catch (searchError) {
+      setError(searchError instanceof Error ? searchError.message : 'Unable to search service records.')
+    } finally {
+      setSearching(false)
+    }
+  }
 
   useEffect(() => {
     let active = true
@@ -103,7 +120,20 @@ export function ServiceOverview({ session, onNavigate }: Props) {
               {isCustomer ? 'View all' : 'Review queue'} <span aria-hidden="true">→</span>
             </button>
           </div>
-          {loading ? <p className="state-message" role="status">Loading service activity…</p> : requests.length === 0 ? (
+          <form className="management-form" onSubmit={handleSearch}>
+            <label>Search service requests and activity
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Request ID, vehicle, customer, or work performed" />
+            </label>
+            <div className="management-actions">
+              <button className="button button--secondary" type="submit" disabled={searching}>{searching ? 'Searching…' : 'Search'}</button>
+              {searchResults !== null && <button className="text-button" type="button" onClick={() => setSearchResults(null)}>Clear</button>}
+            </div>
+          </form>
+          {searchResults !== null ? searchResults.length === 0 ? (
+            <div className="empty-state"><h3>No matching service records</h3><p>Try a different request, vehicle, customer, or activity term.</p></div>
+          ) : (
+            <div className="overview-request-list">{searchResults.map((request) => <article className="overview-request" key={request.id}><span className="overview-request__icon">SR</span><div className="overview-request__copy"><strong>{request.serviceType || 'Service request'}</strong><span>{request.id} · {request.workPerformed || request.description}</span></div><time>{request.status.replaceAll('_', ' ')}</time></article>)}</div>
+          ) : loading ? <p className="state-message" role="status">Loading service activity…</p> : requests.length === 0 ? (
             <div className="empty-state"><h3>{isCustomer ? 'No requests yet' : 'No service activity yet'}</h3><p>{isCustomer ? 'Create a request when your vehicle needs attention.' : 'Submitted requests will appear here as customers contact the service centre.'}</p></div>
           ) : (
             <div className="overview-request-list">

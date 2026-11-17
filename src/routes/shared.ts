@@ -59,12 +59,14 @@ export const updateUserSchema = z.object({
 
 export const createServiceSchema = z.object({
   vehicleId: z.string().trim().min(1),
+  requestDate: z.iso.date(),
   serviceType: z.string().trim().max(40).nullable().optional(),
   description: z.string().trim().max(500).nullable().optional()
 });
 
 export const updateServiceRequestSchema = z.object({
   vehicleId: z.string().trim().min(1).optional(),
+  requestDate: z.iso.date().optional(),
   serviceType: z.string().trim().max(40).nullable().optional(),
   description: z.string().trim().max(500).nullable().optional()
 }).refine(
@@ -155,6 +157,7 @@ export interface ServiceRow {
   id: string;
   vehicleId: string | null;
   customerId: string | null;
+  requestDate: string | null;
   serviceType: string | null;
   description: string;
   status: typeof serviceStatuses[number];
@@ -182,6 +185,7 @@ export const serviceSelect = `
     s.id,
     s.vehicle_id AS vehicleId,
     v.customer_id AS customerId,
+    s.request_date AS requestDate,
     s.service_type AS serviceType,
     s.description,
     s.status,
@@ -361,3 +365,9 @@ export const updateVehicleSchema = z
     (value) => Object.keys(value).length > 0,
     "Provide at least one field to update"
   );
+
+export const createMaintenanceRecordSchema = z.object({
+  maintenanceDate: z.iso.date(),
+  details: z.string().trim().min(1).max(2000),
+  serviceId: z.string().trim().min(1).optional()
+});

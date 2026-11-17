@@ -26,6 +26,7 @@ test("database initialization migrates existing service and customer tables", ()
   for (const column of [
     "vehicle_id",
     "service_type",
+    "request_date",
     "review_status",
     "reviewed_by",
     "reviewed_at",
@@ -291,6 +292,7 @@ test("customers can submit requests for their vehicles and advisors must validat
     .set("Authorization", `Bearer ${context.customerToken}`)
     .send({
       vehicleId: customerVehicleId,
+      requestDate: "2026-09-15",
       serviceType: "Inspection",
       description: "Brake inspection"
     });
@@ -313,6 +315,10 @@ test("customers can submit requests for their vehicles and advisors must validat
   assert.equal(created.status, 201);
   assert.equal(created.body.service.status, "submitted");
   assert.equal(created.body.service.customerId, customerProfileId);
+  assert.equal(created.body.service.requestDate, "2026-09-15");
+  const reopened = await request(app).get(`/api/services/${created.body.service.id}`)
+    .set("Authorization", `Bearer ${context.customerToken}`);
+  assert.equal(reopened.body.service.requestDate, "2026-09-15");
   assert.equal(review.status, 200);
   assert.equal(review.body.service.status, "validated");
   assert.equal(prematureStatus.status, 409);
@@ -323,6 +329,47 @@ test("customers can submit requests for their vehicles and advisors must validat
   assert.equal(change.actorUserId, context.admin.id);
   assert.equal(change.details.from, "assigned");
   assert.equal(change.details.to, "in_progress");
+});
+
+test("service request creation requires a valid requested date", async () => {
+  const app = createApp(context.db, secret);
+  const now = new Date().toISOString();
+  const customerId = "customer-record-request-date";
+  const vehicleId = "vehicle-record-request-date";
+  context.db.prepare(`
+    INSERT INTO customers (id, name, email, phone, address, user_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(customerId, "Customer User", context.customer.email, "9876543210", null, context.customer.id, now, now);
+  context.db.prepare(`
+    INSERT INTO vehicles (id, customer_id, registration_number, make, model, year, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(vehicleId, customerId, "KA06KL0123", "Honda", "City", 2022, now, now);
+  const headers = { Authorization: `Bearer ${context.customerToken}` };
+
+  const missingDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+  const blankDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    requestDate: "",
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+  const validDate = await request(app).post("/api/services").set(headers).send({
+    vehicleId,
+    requestDate: "2026-09-15",
+    serviceType: "General Service",
+    description: "Engine inspection"
+  });
+
+  assert.equal(missingDate.status, 400);
+  assert.ok(missingDate.body.details.some((issue: { path: Array<string | number> }) => issue.path.includes("requestDate")));
+  assert.equal(blankDate.status, 400);
+  assert.ok(blankDate.body.details.some((issue: { path: Array<string | number> }) => issue.path.includes("requestDate")));
+  assert.equal(validDate.status, 201);
+  assert.equal(validDate.body.service.requestDate, "2026-09-15");
 });
 
 test("incomplete requests stay submitted until corrected and pass advisor review", async () => {
@@ -342,7 +389,7 @@ test("incomplete requests stay submitted until corrected and pass advisor review
 
   const submitted = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${context.customerToken}`)
-    .send({ vehicleId, description: "Inspect the brakes" });
+    .send({ vehicleId, requestDate: "2026-09-15", description: "Inspect the brakes" });
   const invalidReview = await request(app).patch(`/api/services/${submitted.body.service.id}/review`)
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({ decision: "validate" });
@@ -384,7 +431,7 @@ test("advisors can reject with a reason and customers can correct and resubmit",
   `).run(vehicleId, customerId, "KA03EF8910", "Suzuki", "Swift", 2020, now, now);
   const created = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${context.customerToken}`)
-    .send({ vehicleId, serviceType: "Repair", description: "Engine noise" });
+    .send({ vehicleId, requestDate: "2026-09-15", serviceType: "Repair", description: "Engine noise" });
   const noReason = await request(app).patch(`/api/services/${created.body.service.id}/review`)
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({ decision: "reject" });
@@ -406,6 +453,7 @@ test("advisors can reject with a reason and customers can correct and resubmit",
   assert.equal(resubmitted.status, 200);
   assert.equal(resubmitted.body.service.status, "submitted");
   assert.equal(resubmitted.body.service.rejectionReason, null);
+  assert.equal(resubmitted.body.service.requestDate, "2026-09-15");
   assert.equal(validated.status, 200);
   assert.equal(validated.body.service.status, "validated");
 });
@@ -449,7 +497,7 @@ test("administrators link customer accounts to existing customer records", async
     });
   const ownRequest = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${customerToken}`)
-    .send({ vehicleId: vehicle.body.vehicle.id, serviceType: "Oil change", description: "Routine service" });
+    .send({ vehicleId: vehicle.body.vehicle.id, requestDate: "2026-09-15", serviceType: "Oil change", description: "Routine service" });
   const duplicateAccount = await request(app).post("/api/admin/users")
     .set("Authorization", `Bearer ${context.adminToken}`)
     .send({
@@ -473,7 +521,7 @@ test("administrators link customer accounts to existing customer records", async
     });
   const otherCustomerRequest = await request(app).post("/api/services")
     .set("Authorization", `Bearer ${customerToken}`)
-    .send({ vehicleId: otherVehicle.body.vehicle.id, serviceType: "Inspection", description: "Not owned" });
+    .send({ vehicleId: otherVehicle.body.vehicle.id, requestDate: "2026-09-15", serviceType: "Inspection", description: "Not owned" });
   const ownList = await request(app).get("/api/services")
     .set("Authorization", `Bearer ${customerToken}`);
 
@@ -1090,4 +1138,212 @@ test("vehicle routes reject unauthorized access", async () => {
 
   assert.equal(unauthenticated.status, 401);
   assert.equal(forbidden.status, 403);
+});
+
+test("maintenance history and customer, vehicle, and service searches filter results", async () => {
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  const customer = await request(app).post("/api/customers").set(headers).send({
+    name: "Rahul Kumar", email: "rahul@example.com", phone: "9876543210"
+  });
+  assert.equal(customer.status, 201);
+  const vehicle = await request(app).post("/api/vehicles").set(headers).send({
+    customerId: customer.body.customer.id, registrationNumber: "KA01AB1234",
+    make: "Toyota", model: "Corolla", year: 2022
+  });
+  assert.equal(vehicle.status, 201);
+
+  const customerSearch = await request(app).get("/api/customers?search=Rahul").set(headers);
+  assert.equal(customerSearch.status, 200);
+  assert.deepEqual(customerSearch.body.customers.map((row: { id: string }) => row.id), [customer.body.customer.id]);
+  const customerMiss = await request(app).get("/api/customers?search=NotThere").set(headers);
+  assert.equal(customerMiss.body.total, 0);
+  const vehicleSearch = await request(app).get("/api/vehicles?search=KA01AB1234").set(headers);
+  assert.equal(vehicleSearch.status, 200);
+  assert.deepEqual(vehicleSearch.body.vehicles.map((row: { id: string }) => row.id), [vehicle.body.vehicle.id]);
+
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status,
+    work_performed, created_by, created_at, updated_at) VALUES (?, ?, ?, 'completed', 'validated', ?, ?, ?, ?)`)
+    .run("service-brake-search", vehicle.body.vehicle.id, "Brake service", "Brake inspection", context.admin.id, now, now);
+  const serviceSearch = await request(app).get("/api/services?search=Brake%20inspection").set(headers);
+  assert.equal(serviceSearch.status, 200);
+  assert.deepEqual(serviceSearch.body.services.map((row: { id: string }) => row.id), ["service-brake-search"]);
+  const serviceMiss = await request(app).get("/api/services?search=SR9999").set(headers);
+  assert.equal(serviceMiss.body.total, 0);
+
+  const maintenance = await request(app).post(`/api/vehicles/${vehicle.body.vehicle.id}/maintenance`).set(headers).send({
+    maintenanceDate: "2026-09-15", details: "Brake pads replaced"
+  });
+  assert.equal(maintenance.status, 201);
+  const history = await request(app).get(`/api/vehicles/${vehicle.body.vehicle.id}/history`).set(headers);
+  assert.equal(history.status, 200);
+  assert.equal(history.body.maintenanceRecords[0].details, "Brake pads replaced");
+  assert.equal(history.body.serviceRecords[0].workPerformed, "Brake inspection");
+});
+
+function seedSearchVehicle(id: string, customerId: string, name: string, registration: string) {
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO customers (id, name, email, phone, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?)`).run(customerId, name, `${customerId}@example.com`, "9876543210", now, now);
+  context.db.prepare(`INSERT INTO vehicles (id, customer_id, registration_number, make, model, year, created_at, updated_at)
+    VALUES (?, ?, ?, 'Toyota', 'Corolla', 2022, ?, ?)`).run(id, customerId, registration, now, now);
+  return { id, customerId };
+}
+
+test("UT-10 retest: create and read a dated vehicle maintenance record", async () => {
+  const vehicle = seedSearchVehicle("ut10-car", "ut10-customer", "UT10 Customer", "UT10AA1001");
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  const created = await request(app).post(`/api/vehicles/${vehicle.id}/maintenance`).set(headers)
+    .send({ maintenanceDate: "2026-09-15", details: "Oil and filter replaced" });
+  assert.equal(created.status, 201);
+  const history = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set(headers);
+  assert.equal(history.body.maintenanceRecords[0].maintenanceDate, "2026-09-15");
+  assert.equal(history.body.maintenanceRecords[0].details, "Oil and filter replaced");
+});
+
+test("IT-11 retest: maintenance record belongs only to its selected vehicle", async () => {
+  const first = seedSearchVehicle("it11-car-a", "it11-customer-a", "IT11 A", "IT11AA1001");
+  const second = seedSearchVehicle("it11-car-b", "it11-customer-b", "IT11 B", "IT11AA1002");
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  const saved = await request(app).post(`/api/vehicles/${first.id}/maintenance`).set(headers)
+    .send({ maintenanceDate: "2026-09-15", details: "Brake pads replaced" });
+  assert.equal(saved.status, 201);
+  const firstHistory = await request(app).get(`/api/vehicles/${first.id}/history`).set(headers);
+  const secondHistory = await request(app).get(`/api/vehicles/${second.id}/history`).set(headers);
+  assert.equal(firstHistory.body.maintenanceRecords.length, 1);
+  assert.equal(secondHistory.body.maintenanceRecords.length, 0);
+});
+
+test("IT-12 retest: vehicle history combines completed service and maintenance entries", async () => {
+  const vehicle = seedSearchVehicle("it12-car", "it12-customer", "IT12 Customer", "IT12AA1001");
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, work_performed, created_by, created_at, updated_at)
+    VALUES ('it12-service', ?, 'Brake service', 'completed', 'validated', 'Brake inspection', ?, ?, ?)`)
+    .run(vehicle.id, context.admin.id, now, now);
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  await request(app).post(`/api/vehicles/${vehicle.id}/maintenance`).set(headers)
+    .send({ maintenanceDate: "2026-09-15", details: "Brake pads replaced", serviceId: "it12-service" }).expect(201);
+  const history = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set(headers).expect(200);
+  assert.equal(history.body.serviceRecords[0].workPerformed, "Brake inspection");
+  assert.equal(history.body.maintenanceRecords[0].serviceId, "it12-service");
+});
+
+test("ST-07 retest: completed status and maintenance persist in the same vehicle history", async () => {
+  const vehicle = seedSearchVehicle("st07-car", "st07-customer", "ST07 Customer", "ST07AA1001");
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, work_performed, created_by, created_at, updated_at)
+    VALUES ('st07-service', ?, 'Service', 'completed', 'validated', 'Engine serviced', ?, ?, ?)`)
+    .run(vehicle.id, context.admin.id, now, now);
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  await request(app).post(`/api/vehicles/${vehicle.id}/maintenance`).set(headers)
+    .send({ maintenanceDate: "2026-09-15", details: "Engine oil replaced", serviceId: "st07-service" }).expect(201);
+  const history = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set(headers).expect(200);
+  assert.equal(history.body.serviceRecords[0].status, "completed");
+  assert.equal(history.body.maintenanceRecords[0].details, "Engine oil replaced");
+});
+
+test("ST-08 retest: vehicle history enforces customer ownership and staff roles", async () => {
+  const vehicle = seedSearchVehicle("st08-car", "st08-customer", "ST08 Customer", "ST08AA1001");
+  context.db.prepare("UPDATE customers SET user_id = ? WHERE id = ?").run(context.customer.id, vehicle.customerId);
+  const app = createApp(context.db, secret);
+  const own = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set("Authorization", `Bearer ${context.customerToken}`);
+  assert.equal(own.status, 200);
+  const anotherCustomer: AuthenticatedUser = { id: "other-customer", email: "other-customer@example.com", displayName: "Other", role: "Customer" };
+  context.db.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(anotherCustomer.id, anotherCustomer.email, anotherCustomer.displayName, "unused", anotherCustomer.role, new Date().toISOString(), new Date().toISOString());
+  const denied = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set("Authorization", `Bearer ${createToken(anotherCustomer, secret)}`);
+  assert.equal(denied.status, 404);
+  const technician: AuthenticatedUser = { id: "tech-history", email: "tech@example.com", displayName: "Tech", role: "Service Technician" };
+  context.db.prepare(`INSERT INTO users (id, email, display_name, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+    .run(technician.id, technician.email, technician.displayName, "unused", technician.role, new Date().toISOString(), new Date().toISOString());
+  const staffDenied = await request(app).get(`/api/vehicles/${vehicle.id}/history`).set("Authorization", `Bearer ${createToken(technician, secret)}`);
+  assert.equal(staffDenied.status, 403);
+});
+
+test("UT-13 retest: customer search filters by name", async () => {
+  seedSearchVehicle("ut13-car", "ut13-customer", "Rahul Kumar", "UT13AA1001");
+  seedSearchVehicle("ut13-car2", "ut13-customer2", "Priya Shah", "UT13AA1002");
+  const result = await request(createApp(context.db, secret)).get("/api/customers?search=Rahul").set("Authorization", `Bearer ${context.adminToken}`);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.customers.map((row: { name: string }) => row.name), ["Rahul Kumar"]);
+});
+
+test("UT-14 retest: vehicle search filters by registration", async () => {
+  seedSearchVehicle("ut14-car", "ut14-customer", "UT14 A", "KA01AB1234");
+  seedSearchVehicle("ut14-car2", "ut14-customer2", "UT14 B", "KA02CD5678");
+  const result = await request(createApp(context.db, secret)).get("/api/vehicles?search=KA01AB1234").set("Authorization", `Bearer ${context.adminToken}`);
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.body.vehicles.map((row: { registrationNumber: string }) => row.registrationNumber), ["KA01AB1234"]);
+});
+
+test("UT-15 retest: unmatched vehicle search returns an empty result", async () => {
+  seedSearchVehicle("ut15-car", "ut15-customer", "UT15 Customer", "UT15AA1001");
+  const result = await request(createApp(context.db, secret)).get("/api/vehicles?search=KA99ZZ9999").set("Authorization", `Bearer ${context.adminToken}`);
+  assert.equal(result.status, 200);
+  assert.equal(result.body.total, 0);
+  assert.deepEqual(result.body.vehicles, []);
+});
+
+test("IT-13 retest: service request search filters by request identifier", async () => {
+  const vehicle = seedSearchVehicle("it13-car", "it13-customer", "IT13 Customer", "IT13AA1001");
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, created_by, created_at, updated_at) VALUES ('it13-known-id', ?, 'Known', 'completed', 'validated', ?, ?, ?)`)
+    .run(vehicle.id, context.admin.id, now, now);
+  const result = await request(createApp(context.db, secret)).get("/api/services?search=it13-known-id").set("Authorization", `Bearer ${context.adminToken}`);
+  assert.deepEqual(result.body.services.map((row: { id: string }) => row.id), ["it13-known-id"]);
+});
+
+test("IT-14 retest: service search filters by recorded activity", async () => {
+  const vehicle = seedSearchVehicle("it14-car", "it14-customer", "IT14 Customer", "IT14AA1001");
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, work_performed, created_by, created_at, updated_at) VALUES ('it14-known', ?, 'Service', 'completed', 'validated', 'Brake inspection', ?, ?, ?)`)
+    .run(vehicle.id, context.admin.id, now, now);
+  const result = await request(createApp(context.db, secret)).get("/api/services?search=Brake%20inspection").set("Authorization", `Bearer ${context.adminToken}`);
+  assert.deepEqual(result.body.services.map((row: { id: string }) => row.id), ["it14-known"]);
+});
+
+test("IT-15 retest: customer service search is limited to that customer's records", async () => {
+  const own = seedSearchVehicle("it15-own-car", "it15-own-customer", "Own", "IT15AA1001");
+  const other = seedSearchVehicle("it15-other-car", "it15-other-customer", "Other", "IT15AA1002");
+  context.db.prepare("UPDATE customers SET user_id = ? WHERE id = ?").run(context.customer.id, own.customerId);
+  const now = new Date().toISOString();
+  const insert = context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, created_by, created_at, updated_at) VALUES (?, ?, 'Service', 'completed', 'validated', ?, ?, ?)`);
+  insert.run("it15-own", own.id, context.admin.id, now, now);
+  insert.run("it15-other", other.id, context.admin.id, now, now);
+  const result = await request(createApp(context.db, secret)).get("/api/services?search=it15").set("Authorization", `Bearer ${context.customerToken}`);
+  assert.deepEqual(result.body.services.map((row: { id: string }) => row.id), ["it15-own"]);
+});
+
+test("ST-09 retest: customer, vehicle, request, and activity searches return their matches", async () => {
+  const vehicle = seedSearchVehicle("st09-car", "st09-customer", "ST09 Match", "ST09AA1001");
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, work_performed, created_by, created_at, updated_at) VALUES ('st09-request', ?, 'ST09 desc', 'completed', 'validated', 'ST09 activity', ?, ?, ?)`)
+    .run(vehicle.id, context.admin.id, now, now);
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.adminToken}` };
+  assert.equal((await request(app).get("/api/customers?search=ST09%20Match").set(headers)).body.total, 1);
+  assert.equal((await request(app).get("/api/vehicles?search=ST09AA1001").set(headers)).body.total, 1);
+  assert.equal((await request(app).get("/api/services?search=st09-request").set(headers)).body.total, 1);
+  assert.equal((await request(app).get("/api/services?search=ST09%20activity").set(headers)).body.total, 1);
+});
+
+test("ST-10 retest: unmatched search is empty and cross-customer service stays hidden", async () => {
+  const own = seedSearchVehicle("st10-own-car", "st10-own-customer", "ST10 Own", "ST10AA1001");
+  const other = seedSearchVehicle("st10-other-car", "st10-other-customer", "ST10 Other", "ST10AA1002");
+  context.db.prepare("UPDATE customers SET user_id = ? WHERE id = ?").run(context.customer.id, own.customerId);
+  const now = new Date().toISOString();
+  context.db.prepare(`INSERT INTO services (id, vehicle_id, description, status, review_status, created_by, created_at, updated_at) VALUES ('st10-other-service', ?, 'Service', 'completed', 'validated', ?, ?, ?)`)
+    .run(other.id, context.admin.id, now, now);
+  const app = createApp(context.db, secret);
+  const headers = { Authorization: `Bearer ${context.customerToken}` };
+  const miss = await request(app).get("/api/services?search=SR9999").set(headers);
+  assert.equal(miss.body.total, 0);
+  const restricted = await request(app).get("/api/services?search=st10-other-service").set(headers);
+  assert.equal(restricted.body.total, 0);
+  assert.equal((await request(app).get("/api/services/st10-other-service").set(headers)).status, 404);
 });

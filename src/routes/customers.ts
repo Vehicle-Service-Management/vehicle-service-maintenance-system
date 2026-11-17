@@ -98,6 +98,11 @@ export function createCustomersRouter(context: RouteContext) {
 
       if (!page) return;
 
+      const search = String(req.query.search ?? "").trim();
+      const pattern = `%${search.replace(/[\\%_]/g, "\\$&")}%`;
+      const filter = `(? = '' OR name LIKE ? ESCAPE '\\' COLLATE NOCASE
+        OR email LIKE ? ESCAPE '\\' COLLATE NOCASE OR phone LIKE ? ESCAPE '\\' COLLATE NOCASE)`;
+
       const customers = db.prepare(`
         SELECT
           id,
@@ -108,12 +113,13 @@ export function createCustomersRouter(context: RouteContext) {
           created_at AS createdAt,
           updated_at AS updatedAt
         FROM customers
+        WHERE ${filter}
         ORDER BY created_at DESC, id
         LIMIT ? OFFSET ?
-      `).all(page.limit, page.offset) as CustomerRow[];
+      `).all(search, pattern, pattern, pattern, page.limit, page.offset) as CustomerRow[];
 
       const total = (
-        db.prepare("SELECT COUNT(*) AS count FROM customers").get() as {
+        db.prepare(`SELECT COUNT(*) AS count FROM customers WHERE ${filter}`).get(search, pattern, pattern, pattern) as {
           count: number;
         }
       ).count;

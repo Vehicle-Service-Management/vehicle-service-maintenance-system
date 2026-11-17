@@ -36,6 +36,7 @@ export function CustomerManagement({ session }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [search, setSearch] = useState('')
 
   const loadCustomers = useCallback(async () => {
     setLoading(true)
@@ -43,7 +44,7 @@ export function CustomerManagement({ session }: Props) {
 
     try {
       const result = await apiRequest<CustomerPage>(
-        '/api/customers?limit=100',
+        `/api/customers?limit=100&search=${encodeURIComponent(search)}`,
         session.accessToken,
       )
 
@@ -57,7 +58,7 @@ export function CustomerManagement({ session }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [session.accessToken])
+  }, [session.accessToken, search])
 
   useEffect(() => {
     void loadCustomers()
@@ -252,13 +253,16 @@ export function CustomerManagement({ session }: Props) {
         </div>
 
         <p>{customers.length} customer(s) displayed</p>
+        <label>Search customers
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, email, or phone" />
+        </label>
 
         {loading ? (
           <p className="state-message" role="status">Loading customers…</p>
         ) : customers.length === 0 ? (
           <div className="empty-state">
-            <h3>No customers registered</h3>
-            <p>Register a customer using the form above.</p>
+            <h3>{search ? 'No matching customers' : 'No customers registered'}</h3>
+            <p>{search ? 'Try another name, email, or phone number.' : 'Register a customer using the form above.'}</p>
           </div>
         ) : (
           <div className="management-table-wrap">

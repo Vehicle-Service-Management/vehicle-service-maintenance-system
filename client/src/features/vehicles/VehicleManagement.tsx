@@ -21,6 +21,11 @@ interface VehicleResponse {
   vehicle: Vehicle
 }
 
+interface VehicleHistory {
+  serviceRecords: Array<{ id: string; serviceType: string | null; status: string; workPerformed: string; notes: string; completedAt: string | null }>
+  maintenanceRecords: Array<{ id: string; maintenanceDate: string; details: string; serviceId: string | null }>
+}
+
 interface Props {
   session: AuthSession
 }
@@ -42,6 +47,11 @@ export function VehicleManagement({ session }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
+  const [search, setSearch] = useState('')
+  const [historyVehicle, setHistoryVehicle] = useState<Vehicle | null>(null)
+  const [history, setHistory] = useState<VehicleHistory | null>(null)
+  const [maintenanceDate, setMaintenanceDate] = useState(new Date().toISOString().slice(0, 10))
+  const [maintenanceDetails, setMaintenanceDetails] = useState('')
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -55,18 +65,11 @@ export function VehicleManagement({ session }: Props) {
 
       setCustomers(customerPage.customers)
 
-      const pages = await Promise.all(
-        customerPage.customers.map(async (customer) => {
-          const result = await apiRequest<VehiclePage>(
-            `/api/customers/${encodeURIComponent(customer.id)}/vehicles?limit=100`,
-            session.accessToken,
-          )
-
-          return result.vehicles
-        }),
+      const vehiclePage = await apiRequest<VehiclePage>(
+        `/api/vehicles?limit=100&search=${encodeURIComponent(search)}`,
+        session.accessToken,
       )
-
-      setVehicles(pages.flat())
+      setVehicles(vehiclePage.vehicles)
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -76,7 +79,7 @@ export function VehicleManagement({ session }: Props) {
     } finally {
       setLoading(false)
     }
-  }, [session.accessToken])
+  }, [session.accessToken, search])
 
   useEffect(() => {
     void loadData()
@@ -93,6 +96,36 @@ export function VehicleManagement({ session }: Props) {
     })
     setError('')
     setMessage('')
+  }
+
+  async function openHistory(vehicle: Vehicle) {
+    setError('')
+    setHistoryVehicle(vehicle)
+    try {
+      const result = await apiRequest<VehicleHistory>(`/api/vehicles/${encodeURIComponent(vehicle.id)}/history`, session.accessToken)
+      setHistory(result)
+    } catch (historyError) {
+      setError(historyError instanceof Error ? historyError.message : 'Unable to load vehicle history.')
+    }
+  }
+
+  async function saveMaintenance(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!historyVehicle) return
+    setSaving(true)
+    setError('')
+    try {
+      await apiRequest(`/api/vehicles/${encodeURIComponent(historyVehicle.id)}/maintenance`, session.accessToken, {
+        method: 'POST', body: JSON.stringify({ maintenanceDate, details: maintenanceDetails }),
+      })
+      setMaintenanceDetails('')
+      await openHistory(historyVehicle)
+      setMessage('Maintenance record saved.')
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : 'Unable to save maintenance record.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function resetForm() {
@@ -320,12 +353,16 @@ export function VehicleManagement({ session }: Props) {
           </button>
         </div>
 
+        <label>Search vehicles
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Registration, make, model, or customer" />
+        </label>
+
         {loading ? (
           <p className="state-message" role="status">Loading vehicles…</p>
         ) : vehicles.length === 0 ? (
           <div className="empty-state">
-            <h3>No vehicles registered</h3>
-            <p>Register a vehicle using the form above.</p>
+            <h3>{search ? 'No matching vehicles' : 'No vehicles registered'}</h3>
+            <p>{search ? 'Try another search term.' : 'Register a vehicle using the form above.'}</p>
           </div>
         ) : (
           <div className="management-table-wrap">
@@ -357,12 +394,30 @@ export function VehicleManagement({ session }: Props) {
                       >
                         Edit
                       </button>
+                      {' · '}
+                      <button className="text-button" type="button" onClick={() => void openHistory(vehicle)}>History</button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+        )}
+        {historyVehicle && (
+          <section className="panel management-panel" aria-label="Vehicle service and maintenance history">
+            <div className="overview-section-heading"><div><p className="eyebrow"><span /> VEHICLE HISTORY</p><h3>{historyVehicle.registrationNumber}</h3></div><button className="text-button" type="button" onClick={() => { setHistoryVehicle(null); setHistory(null) }}>Close</button></div>
+            <form className="management-form" onSubmit={saveMaintenance}>
+              <label>Maintenance date *<input type="date" required value={maintenanceDate} onChange={(event) => setMaintenanceDate(event.target.value)} /></label>
+              <label>Maintenance details *<textarea required maxLength={2000} value={maintenanceDetails} onChange={(event) => setMaintenanceDetails(event.target.value)} placeholder="Describe the maintenance performed" /></label>
+              <button className="button button--primary" type="submit" disabled={saving}>{saving ? 'Saving…' : 'Add maintenance record'}</button>
+            </form>
+            {!history ? <p className="state-message">Loading history…</p> : <>
+              <h4>Maintenance records</h4>
+              {history.maintenanceRecords.length ? <ul>{history.maintenanceRecords.map((record) => <li key={record.id}>{record.maintenanceDate}: {record.details}</li>)}</ul> : <p>No maintenance records.</p>}
+              <h4>Service activity</h4>
+              {history.serviceRecords.length ? <ul>{history.serviceRecords.map((record) => <li key={record.id}>{record.serviceType ?? 'Service'} ({record.status}) — {record.workPerformed || 'No work details'}</li>)}</ul> : <p>No service records.</p>}
+            </>}
+          </section>
         )}
       </section>
     </div>
