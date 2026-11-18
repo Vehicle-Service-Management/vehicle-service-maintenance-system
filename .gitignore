@@ -3,3 +3,10 @@ dist/
 data/
 .env
 coverage/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# macOS files
+.DS_Store

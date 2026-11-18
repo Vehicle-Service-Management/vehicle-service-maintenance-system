@@ -12,7 +12,8 @@
     "test": "tsx --test test/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:client": "npm --prefix client run typecheck",
-    "bootstrap-admin": "npm run build && node dist/scripts/bootstrap-admin.js"
+    "bootstrap-admin": "npm run build && node dist/scripts/bootstrap-admin.js",
+    "test:coverage": "c8 --all --include=\"src/**/*.ts\" --reporter=text --reporter=html --reporter=lcov tsx --test test/*.test.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.2",
@@ -30,6 +31,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.16.5",
     "@types/supertest": "^6.0.3",
+    "c8": "^12.0.0",
     "supertest": "^7.1.4",
     "tsx": "^4.20.3",
     "typescript": "^5.9.2"
