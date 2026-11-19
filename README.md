@@ -20,43 +20,31 @@ git pull --ff-only origin main
 ```
 
 
-## Install prerequisites
+## Run the project locally
 
-- Node.js 20.19 or later, or 22.12 or later (needed by the current Vite client)
-- npm (included with Node.js)
-- Git
+### 1. Install prerequisites and dependencies
 
-Check the installed versions:
+Install Git and Node.js 20.19 or later, or 22.12 or later. npm is included with Node.js. From the repository root, install the locked API and client dependencies:
 
 ```powershell
-node --version
-npm --version
-git --version
+npm ci
+npm ci --prefix client
 ```
 
-### Install dependencies
+### 2. Configure the local environment
 
-Run these commands from the repository root:
-
-```powershell
-npm install
-npm --prefix client install
-```
-
-### Configure local environment
-
-Create a local environment file and edit its secret:
+Create `.env` from the example and open it:
 
 ```powershell
 Copy-Item .env.example .env
 notepad .env
 ```
 
-Replace the example `JWT_SECRET` with a random value containing at least 32 characters. Keep the `.env` file private; it is ignored by Git. The default `PORT` is `3000`, and the default SQLite file is `data/app.sqlite`. Both are local to this checkout and are not shared through Git.
+Replace `JWT_SECRET` with a random secret of at least 32 characters. The defaults use port `3000` and the local SQLite database `data/app.sqlite`. Keep `.env` private; it is ignored by Git.
 
-### Create the first local administrator
+### 3. Create a local administrator
 
-Do this once for a new local database, before starting the API. Choose a unique password of at least 12 characters:
+For a new local database, create the first administrator once before starting the API. Choose a password of at least 12 characters:
 
 ```powershell
 $env:BOOTSTRAP_ADMIN_PASSWORD = "<your local admin password>"
@@ -64,29 +52,44 @@ npm run bootstrap-admin -- admin@example.com "System Administrator"
 Remove-Item Env:BOOTSTRAP_ADMIN_PASSWORD
 ```
 
-Use the same email and password to sign in to the development client. The bootstrap command only works when the database has no users. It stores a bcrypt hash and an audit event, not the password itself. If you already bootstrapped this database, do not run it again.
+Use that email and password to sign in. The bootstrap command only works when the database has no users; if you already created an administrator, skip this step. Each checkout has its own database and user accounts.
 
-### Start the backend and frontend
+### 4. Start the API and client
 
-Keep each process running in its own PowerShell terminal. In terminal 1, start the API from the repository root:
+Open two PowerShell terminals in the repository root and leave both running.
+
+In terminal 1, start the API:
 
 ```powershell
 npm run dev
 ```
 
-The API listens on `http://localhost:3000`. Check it from another terminal:
-
-```powershell
-Invoke-RestMethod http://localhost:3000/health
-```
-
-In terminal 2, from the repository root, start the Vite client:
+The API listens on `http://localhost:3000`. In terminal 2, start the client:
 
 ```powershell
 npm run dev:client
 ```
 
-Open the local URL printed by Vite (normally `http://localhost:5173`). The client proxies `/api` and `/health` to the API. In development mode, the sign-in panel calls the real API login endpoint; it does not bypass authentication or role checks.
+Open the URL printed by Vite, usually `http://localhost:5173`. The client forwards `/api` and `/health` requests to the API. To verify the API from another terminal, run:
+
+```powershell
+Invoke-RestMethod http://localhost:3000/health
+```
+
+The sign-in form uses the real API and role checks. Press `Ctrl+C` in each terminal to stop the servers.
+
+### 5. Run tests and build checks
+
+From the repository root, run the existing verification commands:
+
+```powershell
+npm test
+npm run typecheck
+npm run typecheck:client
+npm --prefix client run lint
+npm run build
+npm --prefix client run build
+```
 
 ## Try customer, vehicle, and service request workflows
 
